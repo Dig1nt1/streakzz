@@ -7,7 +7,7 @@ import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import { Avatar } from "./ui/avatar";
 import { Edit2, Upload, Loader2, X, Plus } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 
 interface EditProfileDialogProps {
   user: {

@@ -18,7 +18,7 @@ import { getSupabaseClient } from "./utils/supabase/client";
 import { projectId, publicAnonKey } from "./utils/supabase/info";
 import streakzLogo from "figma:asset/0b5993ed4ace0b1938a06682c91bcf77a5cd9292.png";
 import { Toaster } from "./components/ui/sonner";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import backgroundTexture from "figma:asset/6128107800268459dda51dfef463f0e68d789714.png";
 import { getNewlyUnlockedAchievements, getUnlockedAchievementIds } from "./utils/achievements";
 

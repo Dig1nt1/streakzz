@@ -7,7 +7,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { motion, AnimatePresence } from "motion/react";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { CreateSyncRoomDialog } from "./CreateSyncRoomDialog";
 import { JoinPrivateRoomDialog } from "./JoinPrivateRoomDialog";
 
