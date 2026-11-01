@@ -1450,7 +1450,7 @@ export default function App() {
       </header>
 
       <div className="lg:pl-[72px]">
-      <div className="mx-auto max-w-[1120px] px-4 sm:px-6 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pt-8 lg:pb-10">
+      <div className={`mx-auto ${currentView === "messages" ? "max-w-[1360px]" : "max-w-[1120px]"} px-4 sm:px-6 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pt-8 lg:pb-10`}>
         <div className={showRail ? "grid items-start gap-[14px] xl:grid-cols-[minmax(0,1fr)_320px]" : ""}>
           <main className="min-w-0">
             {currentView === "feed" && (
