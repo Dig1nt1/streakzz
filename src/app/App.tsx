@@ -1629,7 +1629,7 @@ export default function App() {
       </nav>
 
       {/* Offer to install the app on the home screen */}
-      {currentView !== "messages" && (
+      {currentView !== "messages" && currentView !== "sync" && (
         <InstallAppBanner className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 lg:inset-x-auto lg:bottom-6 lg:right-6 lg:w-[380px]" />
       )}
 

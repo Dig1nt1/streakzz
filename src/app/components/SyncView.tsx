@@ -59,6 +59,7 @@ export function SyncView({
     id: string; userId: string; userName: string; userAvatar: string; text: string; timestamp: number;
   }>>([]);
   const [chatInput, setChatInput] = useState("");
+  const [roomPanel, setRoomPanel] = useState<"chat" | "people">("chat");
   const [isSendingChat, setIsSendingChat] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const lastChatMessageIdRef = useRef<string | null>(null);
@@ -548,6 +549,22 @@ export function SyncView({
   }, [joinedRoom, accessToken]);
 
   const currentRoom = syncRooms.find((room) => room.id === joinedRoom);
+  const myJoinedAt = currentRoom?.activeUsers.find(u => u.id === currentUserId)?.joinedAt;
+
+  // How long someone has been in the room, refreshed every 30 seconds
+  const [clock, setClock] = useState(Date.now());
+  useEffect(() => {
+    if (!joinedRoom) return;
+    const tick = setInterval(() => setClock(Date.now()), 30000);
+    return () => clearInterval(tick);
+  }, [joinedRoom]);
+  const sessionLength = (since?: number) => {
+    if (!since) return "just now";
+    const minutes = Math.max(0, Math.floor((clock - since) / 60000));
+    if (minutes < 1) return "under a minute";
+    if (minutes < 60) return `${minutes} min`;
+    return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+  };
 
   return (
     <div className="space-y-5">
@@ -567,194 +584,174 @@ export function SyncView({
         )}
       </div>
 
-      {/* Joined Room View */}
+      {/* Joined room: the room as an object header, then the chat beside who is here */}
       {joinedRoom && currentRoom && (
-        <Card className="p-4 sm:p-6 border-rule bg-surface">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1 mr-3">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-white text-lg sm:text-xl">
-                  {currentRoom.name}
-                </h3>
-                {currentRoom.isPrivate && (
-                  <Lock className="h-4 w-4 text-white" />
+        <div className="space-y-[14px]">
+          <section className="flex flex-col gap-4 rounded-[20px] bg-surface p-4 sm:flex-row sm:items-start sm:p-5" aria-labelledby="room-title">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex h-6 items-center gap-1.5 rounded-full bg-positive-tint px-2.5 text-xs font-medium text-positive">
+                  <span className="h-1.5 w-1.5 rounded-full bg-positive" />Live
+                </span>
+                <h2 id="room-title" className="truncate text-lg font-semibold text-white">{currentRoom.name}</h2>
+                {currentRoom.isPrivate && <Lock className="h-4 w-4 text-muted-text" aria-label="Private room" />}
+              </div>
+              <p className="mt-1 flex flex-wrap gap-x-1.5 text-[13px] text-muted-text">
+                <span>{currentRoom.category}</span>
+                {currentRoom.isCustom && currentRoom.creatorName && (<><span aria-hidden>·</span><span>Created by {currentRoom.creatorName}</span></>)}
+                <span aria-hidden>·</span>
+                <span className="tabular-nums">{currentRoom.totalUsers} here now</span>
+              </p>
+              {currentRoom.description && <p className="mt-2 text-[15px] leading-[22px] text-body">{currentRoom.description}</p>}
+            </div>
+            <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end">
+              <p className="mr-auto text-sm text-white sm:mr-0" aria-live="off">
+                <span className="text-muted-text">You've been here </span>
+                <span className="font-semibold tabular-nums">{sessionLength(myJoinedAt)}</span>
+              </p>
+              <div className="flex gap-2">
+                {currentRoom.isCustom && currentRoom.createdBy === currentUserId && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="Delete room"
+                    onClick={async () => {
+                      if (confirm(`Delete "${currentRoom.name}"? This can't be undone.`)) await handleDeleteRoom(currentRoom.id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 )}
-                {currentRoom.isCustom && (
-                  <Badge variant="outline" className="bg-raised border-transparent text-white text-xs">
-                    Custom
-                  </Badge>
+                <Button variant="outline" onClick={handleLeaveRoom}>
+                  <LogOut className="h-4 w-4" />
+                  Leave room
+                </Button>
+              </div>
+            </div>
+          </section>
+
+          {/* Phones: one panel at a time */}
+          <div className="grid grid-cols-2 rounded-full bg-surface p-1 lg:hidden" role="tablist" aria-label="Room panels">
+            {(["chat", "people"] as const).map(tab => (
+              <button
+                key={tab}
+                role="tab"
+                aria-selected={roomPanel === tab}
+                onClick={() => setRoomPanel(tab)}
+                className={`h-9 rounded-full text-sm font-medium transition-colors ${roomPanel === tab ? "bg-raised text-white" : "text-[#bbbbbb]"}`}
+              >
+                {tab === "chat" ? "Chat" : `People ${currentRoom.totalUsers}`}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid items-start gap-[14px] lg:grid-cols-[minmax(0,1fr)_300px]">
+            {/* Room chat */}
+            <section
+              aria-labelledby="room-chat-title"
+              className={`h-[calc(100dvh-24rem)] min-h-[360px] flex-col rounded-[20px] bg-surface lg:h-[calc(100dvh-17rem)] ${roomPanel === "chat" ? "flex" : "hidden lg:flex"}`}
+            >
+              <div className="flex items-baseline justify-between px-5 pt-4 pb-2">
+                <h3 id="room-chat-title" className="text-base font-semibold text-white">Room chat</h3>
+                <span className="text-xs tabular-nums text-faint">{chatMessages.length} {chatMessages.length === 1 ? "message" : "messages"}</span>
+              </div>
+              <div ref={chatContainerRef} className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 sm:px-5">
+                {chatMessages.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center text-center">
+                    <p className="text-sm font-medium text-white">Quiet in here</p>
+                    <p className="mt-1 text-sm text-muted-text">Say what you're working on today.</p>
+                  </div>
+                ) : (
+                  <ol className="flex min-h-full flex-col justify-end gap-1">
+                    {chatMessages.map((msg, index) => {
+                      const isMe = msg.userId === currentUserId;
+                      const previous = chatMessages[index - 1];
+                      const continued = previous && previous.userId === msg.userId;
+                      return (
+                        <li key={msg.id} className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : ""} ${continued ? "" : "mt-2"}`}>
+                          {!isMe && (
+                            continued
+                              ? <span className="w-7 shrink-0" />
+                              : <img src={msg.userAvatar} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
+                          )}
+                          <div className={`flex min-w-0 max-w-[78%] flex-col ${isMe ? "items-end" : "items-start"}`}>
+                            {!isMe && !continued && <span className="mb-0.5 px-1 text-xs text-muted-text">{msg.userName.split(" ")[0]}</span>}
+                            <div className={`rounded-[18px] px-3.5 py-2 text-[15px] leading-[21px] break-words whitespace-pre-wrap ${isMe ? "rounded-br-md bg-[#f2efe9] text-[#0e0d0c]" : "rounded-bl-md bg-raised text-white"}`}>
+                              {msg.text.split(/(\s+)/).map((part, i) => {
+                                try {
+                                  const url = new URL(part);
+                                  if (url.protocol === "http:" || url.protocol === "https:") {
+                                    return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="break-all underline underline-offset-2">{part}</a>;
+                                  }
+                                } catch {}
+                                return part;
+                              })}
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
                 )}
               </div>
-              <p className="text-muted-text text-sm mb-2">{currentRoom.description}</p>
-              {currentRoom.isCustom && currentRoom.creatorName && (
-                <p className="text-faint text-xs mb-1">
-                  Created by {currentRoom.creatorName}
-                </p>
-              )}
-              <p className="text-white text-xs">
-                💡 You'll be automatically disconnected when you leave this page
-              </p>
-            </div>
-            <div className="flex gap-2 flex-shrink-0">
-              {currentRoom.isCustom && currentRoom.createdBy === currentUserId && (
-                <Button
-                  onClick={async () => {
-                    if (confirm(`Are you sure you want to delete "${currentRoom.name}"? This cannot be undone.`)) {
-                      await handleDeleteRoom(currentRoom.id);
-                    }
-                  }}
-                  variant="outline"
-                  className="bg-gray-500/10 border-gray-500/20 text-muted-text hover:bg-gray-500/20"
-                  title="Delete room"
+              <div className="flex gap-2 border-t border-rule p-2.5 sm:p-3">
+                <Input
+                  placeholder="Message the room"
+                  aria-label="Message the room"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") sendChatMessage(); }}
+                  className="h-10 flex-1 rounded-full border-transparent bg-raised px-4 text-[15px] text-white placeholder:text-faint"
+                />
+                <button
+                  onClick={sendChatMessage}
+                  disabled={!chatInput.trim() || isSendingChat}
+                  aria-label="Send"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-black transition-opacity disabled:opacity-40"
                 >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-              <Button
-                onClick={handleLeaveRoom}
-                variant="outline"
-                className="bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Leave
-              </Button>
-            </div>
-          </div>
+                  <Send className="h-4 w-4" />
+                </button>
+              </div>
+            </section>
 
-          {/* Active Users Count */}
-          <div className="flex items-center gap-2 mb-4 text-positive">
-            <motion.div
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
+            {/* Who is here, longest first */}
+            <section
+              aria-labelledby="room-people-title"
+              className={`max-h-[calc(100dvh-17rem)] flex-col rounded-[20px] bg-surface p-4 ${roomPanel === "people" ? "flex" : "hidden lg:flex"}`}
             >
-              <Radio className="h-4 w-4" />
-            </motion.div>
-            <span className="text-sm">
-              {currentRoom.totalUsers}{" "}
-              {currentRoom.totalUsers === 1 ? "person" : "people"} streaking now
-            </span>
-          </div>
-
-          {/* Active Users Grid */}
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3 sm:gap-4">
-            <AnimatePresence mode="popLayout">
-              {currentRoom.activeUsers.map((user) => (
-                <motion.div
-                  key={user.id}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  className="flex flex-col items-center gap-2 cursor-pointer"
-                  onClick={() => onUserClick?.(user.id)}
-                >
-                  <div className="relative">
-                    <Avatar className="h-12 w-12 sm:h-14 sm:w-14">
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="object-cover"
-                      />
-                    </Avatar>
-                    {user.isActive && (
-                      <motion.div
-                        className="absolute -inset-1 rounded-full bg-raised -z-10"
-                        animate={{
-                          opacity: [0.5, 1, 0.5],
-                          scale: [1, 1.1, 1],
-                        }}
-                        transition={{
-                          duration: 2,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                        }}
-                      />
-                    )}
-                    <div
-                      className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-black/40 ${
-                        user.isActive ? "bg-positive" : "bg-gray-500"
-                      }`}
-                    />
-                  </div>
-                  <p className="text-white text-xs text-center truncate w-full">
-                    {(user.alias || user.name).split(" ")[0]}
-                  </p>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-
-          {/* Room Chat */}
-          <div className="mt-5 border-t border-rule pt-4">
-            <h4 className="text-white text-sm mb-3 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-white inline-block" />
-              Room Chat
-            </h4>
-            <div ref={chatContainerRef} className="h-52 overflow-y-auto space-y-2 mb-3 pr-1 scrollbar-thin">
-              {chatMessages.length === 0 ? (
-                <p className="text-faint text-xs text-center mt-16">No messages yet. Say something!</p>
-              ) : (
-                chatMessages.map((msg) => {
-                  const isMe = msg.userId === currentUserId;
+              <div className="mb-2 flex items-baseline justify-between px-1">
+                <h3 id="room-people-title" className="text-base font-semibold text-white">Here now</h3>
+                <span className="text-xs tabular-nums text-faint">{currentRoom.totalUsers}</span>
+              </div>
+              <ul className="min-h-0 flex-1 overflow-y-auto">
+                {[...currentRoom.activeUsers].sort((a, b) => a.joinedAt - b.joinedAt).map(user => {
+                  const isMe = user.id === currentUserId;
                   return (
-                    <div key={msg.id} className={`flex items-start gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
-                      <Avatar className="h-7 w-7 flex-shrink-0">
-                        <img src={msg.userAvatar} alt={msg.userName} className="object-cover" />
-                      </Avatar>
-                      <div className={`max-w-[75%] min-w-0 w-fit ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
-                        {!isMe && (
-                          <span className="text-white text-xs">{msg.userName.split(" ")[0]}</span>
-                        )}
-                        <div className={`px-3 py-2 rounded-2xl text-sm break-words whitespace-pre-wrap overflow-wrap-anywhere w-full ${
-                          isMe
-                            ? "bg-[#f2efe9] text-[#0e0d0c] rounded-tr-sm"
-                            : "bg-raised text-white rounded-tl-sm"
-                        }`}>
-                          {msg.text.split(/(\s+)/).map((part, i) => {
-                            try {
-                              const url = new URL(part);
-                              if (url.protocol === "http:" || url.protocol === "https:") {
-                                return (
-                                  <a
-                                    key={i}
-                                    href={part}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
-                                  >
-                                    {part}
-                                  </a>
-                                );
-                              }
-                            } catch {}
-                            return part;
-                          })}
-                        </div>
-                      </div>
-                    </div>
+                    <li key={user.id}>
+                      <button
+                        onClick={() => { if (!isMe) onUserClick?.(user.id); }}
+                        className="flex w-full items-center gap-3 rounded-[12px] px-2 py-2 text-left transition-colors hover:bg-raised"
+                      >
+                        <span className="relative shrink-0">
+                          <img src={user.avatar} alt="" className="h-9 w-9 rounded-full object-cover" />
+                          <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${user.isActive ? "bg-positive" : "bg-[#6b6b6b]"}`} aria-label={user.isActive ? "Active" : "Away"} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-medium text-white">{(user as any).alias || user.name}</span>
+                            {isMe && <span className="rounded-full bg-raised px-1.5 text-[11px] text-muted-text">You</span>}
+                          </span>
+                          <span className="block text-xs text-faint">{user.isActive ? "Working" : "Away"} · {sessionLength(user.joinedAt)}</span>
+                        </span>
+                      </button>
+                    </li>
                   );
-                })
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Say something..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") sendChatMessage(); }}
-                className="bg-raised border-rule text-white placeholder:text-faint text-sm"
-              />
-              <Button
-                onClick={sendChatMessage}
-                disabled={!chatInput.trim() || isSendingChat}
-                className="bg-white text-black hover:bg-[#e6e3df] flex-shrink-0"
-                size="sm"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
+                })}
+              </ul>
+              <p className="mt-2 px-1 text-xs text-faint">Leaving this page takes you out of the room.</p>
+            </section>
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Available Rooms */}
