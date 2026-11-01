@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e0d0c" />
+  <title>Streakz · Offline</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #0e0d0c; color: #fff; font-family: Inter, system-ui, sans-serif; }
+    main { height: 100%; display: grid; place-items: center; text-align: center; padding: 24px; box-sizing: border-box; }
+    img { width: 72px; height: 72px; border-radius: 18px; }
+    h1 { font-size: 20px; font-weight: 600; margin: 20px 0 6px; }
+    p { color: #b4b4b4; margin: 0 0 24px; line-height: 1.5; }
+    button { height: 40px; padding: 0 20px; border-radius: 999px; border: 0; background: #fff; color: #000; font: 600 14px Inter, system-ui, sans-serif; }
+  </style>
+</head>
+<body>
+  <main>
+    <div>
+      <img src="/icons/icon-192.png" alt="" />
+      <h1>You're offline</h1>
+      <p>Streakz needs a connection. Your streaks are safe.</p>
+      <button onclick="location.reload()">Try again</button>
+    </div>
+  </main>
+</body>
+</html>

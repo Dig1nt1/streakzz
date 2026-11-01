@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card } from "./ui/card";
+import { InstallAppBanner } from "./InstallAppBanner";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
@@ -220,7 +221,8 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
   };
 
   return (
-    <div className="min-h-screen bg-ground">
+    <div className="min-h-screen bg-ground pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+      <InstallAppBanner className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[380px]" />
       <div className="mx-auto grid min-h-screen max-w-[1120px] items-center gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-14">
         {/* Brand and promise */}
         <div className="flex flex-col gap-6 lg:gap-7">
