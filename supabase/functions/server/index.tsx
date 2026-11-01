@@ -145,6 +145,20 @@ const storagePathFromUrl = (url: unknown) => {
   }
 };
 
+// What the inbox shows for a message, and cleanup for messages that are gone
+const messagePreview = (message: any) =>
+  message?.text || ({ audio: 'Voice message', video: 'Video', image: 'Photo' } as Record<string, string>)[message?.mediaType] || (message?.mediaUrl ? 'Photo' : '');
+const refreshPreview = (conversation: any) => {
+  const last = conversation.messages[conversation.messages.length - 1];
+  conversation.lastMessage = last ? messagePreview(last) : '';
+  conversation.lastMessageTime = last?.sentAt ? new Date(last.sentAt).toISOString() : '';
+};
+const removeMessageLikes = async (messageIds: string[]) => {
+  for (const id of messageIds) {
+    for (const { key } of await kvEntries(`message_like:${id}:`)) await kv.del(key);
+  }
+};
+
 // Older chats kept photos inside the conversation record as base64 text, twice (one copy per
 // person). Move them to storage the first time the conversation is loaded.
 const moveInlineChatMedia = async (conversations: any[]) => {
@@ -1098,7 +1112,7 @@ app.post("/make-server-1f5afd66/conversations/:otherUserId/messages", async (c) 
       likedBy: [],
       ...media,
     };
-    const preview = text || ({ audio: 'Voice message', video: 'Video', image: 'Photo' } as Record<string, string>)[media.mediaType as string];
+    const preview = messagePreview(newMessage);
 
     console.log(`Created message ${newMessage.id} from ${user.id}`);
 
@@ -1159,13 +1173,19 @@ app.delete("/make-server-1f5afd66/conversations/:otherUserId/messages/:messageId
 
     if (conversation1) {
       conversation1.messages = conversation1.messages.filter(msg => msg.id !== messageId);
+      refreshPreview(conversation1);
       await kv.set(conversationKey1, conversation1);
     }
 
     if (conversation2) {
       conversation2.messages = conversation2.messages.filter(msg => msg.id !== messageId);
+      refreshPreview(conversation2);
+      // The other person no longer has this message to read
+      if (conversation2.unread > 0) conversation2.unread -= 1;
       await kv.set(conversationKey2, conversation2);
     }
+
+    await removeMessageLikes([messageId]);
 
     return c.json({ success: true });
   } catch (error: any) {
@@ -1264,8 +1284,21 @@ app.delete("/make-server-1f5afd66/conversations/:otherUserId", async (c) => {
 
     const otherUserId = c.req.param('otherUserId');
     const conversationKey = `conversation:${user.id}:${otherUserId}`;
+    const conversation = await kv.get(conversationKey);
 
     await kv.del(conversationKey);
+
+    // Once both people have deleted the chat, nobody can see its files or flames any more
+    if (conversation?.messages?.length && !(await kv.get(`conversation:${otherUserId}:${user.id}`))) {
+      const paths = conversation.messages
+        .map((m: any) => (typeof m.mediaPath === 'string' ? m.mediaPath : storagePathFromUrl(m.mediaUrl)))
+        .filter((path: string | null): path is string => !!path && (path.startsWith(`${user.id}/`) || path.startsWith(`${otherUserId}/`)));
+      if (paths.length) {
+        const { error: removeError } = await serviceClient().storage.from(MEDIA_BUCKET).remove(paths);
+        if (removeError) console.error("Couldn't remove chat media:", removeError);
+      }
+      await removeMessageLikes(conversation.messages.map((m: any) => m.id));
+    }
 
     return c.json({ success: true });
   } catch (error: any) {

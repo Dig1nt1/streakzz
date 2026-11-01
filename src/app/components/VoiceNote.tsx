@@ -22,6 +22,7 @@ export function useVoiceRecorder(maxSeconds: number, onLimit: () => void) {
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startingRef = useRef(false);
   const onLimitRef = useRef(onLimit);
   onLimitRef.current = onLimit;
 
@@ -38,6 +39,17 @@ export function useVoiceRecorder(maxSeconds: number, onLimit: () => void) {
   }, []);
 
   const start = async () => {
+    // A double tap while the microphone prompt is open must not start two recordings
+    if (recorderRef.current || startingRef.current) return;
+    startingRef.current = true;
+    try {
+      await begin();
+    } finally {
+      startingRef.current = false;
+    }
+  };
+
+  const begin = async () => {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       toast.error("This browser can't record voice messages");
       return;
@@ -49,7 +61,9 @@ export function useVoiceRecorder(maxSeconds: number, onLimit: () => void) {
       toast.error("Allow microphone access to send a voice message");
       return;
     }
-    const mimeType = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find((type) => MediaRecorder.isTypeSupported(type));
+    // AAC in MP4 plays on every phone and browser, so prefer it where recording supports it;
+    // otherwise fall back to Opus in WebM (Firefox, older Chrome)
+    const mimeType = ["audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm;codecs=opus", "audio/ogg;codecs=opus"].find((type) => MediaRecorder.isTypeSupported(type));
     const recorder = new MediaRecorder(stream, { ...(mimeType && { mimeType }), audioBitsPerSecond: 32000 });
     chunksRef.current = [];
     recorder.ondataavailable = (event) => {
@@ -73,7 +87,11 @@ export function useVoiceRecorder(maxSeconds: number, onLimit: () => void) {
     new Promise<VoiceRecording | null>((resolve) => {
       const recorder = recorderRef.current;
       setRecording(false);
+      // Stop the clock now so the limit can't trigger a second send
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
       if (!recorder || recorder.state === "inactive") {
+        recorderRef.current = null;
         releaseMicrophone();
         resolve(null);
         return;
@@ -83,7 +101,9 @@ export function useVoiceRecorder(maxSeconds: number, onLimit: () => void) {
         releaseMicrophone();
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
         recorderRef.current = null;
-        resolve(keep && duration >= 0.5 && blob.size > 0 ? { blob, duration } : null);
+        const usable = duration >= 0.5 && blob.size > 0;
+        if (keep && !usable) toast("That recording was too short to send");
+        resolve(keep && usable ? { blob, duration } : null);
       };
       recorder.stop();
     });
@@ -110,7 +130,7 @@ export function VoiceNotePlayer({ src, duration, mine }: { src: string; duration
     if (!audio) return;
     if (audio.paused) {
       document.querySelectorAll("audio").forEach((other) => other !== audio && other.pause());
-      audio.play().catch(() => toast.error("Couldn't play this voice message"));
+      audio.play().catch(() => toast.error("This voice message can't play on this device"));
     } else {
       audio.pause();
     }
@@ -129,7 +149,7 @@ export function VoiceNotePlayer({ src, duration, mine }: { src: string; duration
   const progress = total ? Math.min(1, position / total) : 0;
 
   return (
-    <div className="flex w-[220px] max-w-full items-center gap-2.5 sm:w-[260px]">
+    <div onDoubleClick={(e) => e.stopPropagation()} className="flex w-[220px] max-w-full items-center gap-2.5 sm:w-[260px]">
       <audio
         ref={audioRef}
         src={src}
