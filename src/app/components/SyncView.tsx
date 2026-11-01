@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { Users, Flame, Radio, LogOut, TrendingUp, Plus, Lock, Trash2, Send, Search } from "lucide-react";
+import { Radio, LogOut, Plus, Lock, Trash2, Send, Search } from "lucide-react";
 import { Input } from "./ui/input";
-import { Card } from "./ui/card";
 import { Avatar } from "./ui/avatar";
-import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
 import { toast } from "sonner";
 import { CreateSyncRoomDialog } from "./CreateSyncRoomDialog";
@@ -566,6 +564,26 @@ export function SyncView({
     return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
   };
 
+  // Rooms list filters: counts above, live rooms first, then by name
+  const [roomFilter, setRoomFilter] = useState<"all" | "live" | "official" | "community">("all");
+  const peopleLive = syncRooms.reduce((sum, room) => sum + room.totalUsers, 0);
+  const liveRooms = syncRooms.filter((room) => room.totalUsers > 0).length;
+  const roomFilters = [
+    { id: "all" as const, label: "All rooms", count: syncRooms.length },
+    { id: "live" as const, label: "Live now", count: liveRooms },
+    { id: "official" as const, label: "Official", count: syncRooms.filter((room) => !room.isCustom).length },
+    { id: "community" as const, label: "Community", count: syncRooms.filter((room) => room.isCustom).length },
+  ];
+  const query = roomSearch.trim().toLowerCase();
+  const visibleRooms = syncRooms
+    .filter((room) =>
+      roomFilter === "live" ? room.totalUsers > 0 :
+      roomFilter === "official" ? !room.isCustom :
+      roomFilter === "community" ? room.isCustom : true
+    )
+    .filter((room) => !query || [room.name, room.description, room.category, room.creatorName].some((field) => (field || "").toLowerCase().includes(query)))
+    .sort((a, b) => b.totalUsers - a.totalUsers || a.name.localeCompare(b.name));
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -573,7 +591,11 @@ export function SyncView({
         <div className="min-w-0">
           <h1 className="text-xl font-semibold leading-7 text-white">Sync</h1>
           <p className="mt-0.5 text-sm text-muted-text">
-            Join others working on their streaks live or create your own room
+            {joinedRoom || isLoading
+              ? "Work on your streak alongside other people, live"
+              : peopleLive > 0
+                ? `${peopleLive} ${peopleLive === 1 ? "person is" : "people are"} working in ${liveRooms} ${liveRooms === 1 ? "room" : "rooms"} right now`
+                : "Nobody is in a room right now. Start one and others can join you."}
           </p>
         </div>
         {!joinedRoom && (
@@ -754,260 +776,118 @@ export function SyncView({
         </div>
       )}
 
-      {/* Available Rooms */}
-      {!joinedRoom && (
-        <>
-          {/* Default Rooms */}
-          {syncRooms.filter(r => !r.isCustom).length > 0 && (
-            <>
-              <h2 className="text-base font-semibold text-white">Official rooms</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                {syncRooms.filter(r => !r.isCustom).map((room) => (
-                  <Card
-                    key={room.id}
-                    className="p-4 sm:p-5 border-rule bg-surface hover:bg-raised transition-colors cursor-pointer group"
-                    onClick={() => handleRoomClick(room)}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-white text-base sm:text-lg group-hover:text-white transition-colors">
-                            {room.name}
-                          </h3>
+      {/* Rooms list: count cards filter the list, live rooms first */}
+      {!joinedRoom && !isLoading && (
+        <div className="space-y-[14px]">
+          <div role="tablist" aria-label="Filter rooms" className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0">
+            {roomFilters.map((filter) => {
+              const selected = roomFilter === filter.id;
+              return (
+                <button
+                  key={filter.id}
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setRoomFilter(filter.id)}
+                  className={`flex shrink-0 items-center gap-2 rounded-full border-[1.5px] px-3.5 py-1.5 text-left transition-colors sm:h-[61px] sm:flex-col sm:items-start sm:justify-center sm:gap-0.5 sm:rounded-[16px] sm:px-3 ${
+                    selected ? "border-flame bg-flame-tint" : "border-transparent bg-surface hover:bg-raised"
+                  }`}
+                >
+                  <span className={`text-[13px] ${selected ? "text-white" : "text-muted-text"}`}>{filter.label}</span>
+                  <span className="text-sm font-semibold tabular-nums text-white sm:text-base">{filter.count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <section className="rounded-[20px] bg-surface" aria-label="Rooms">
+            <div className="flex items-center gap-3 border-b border-rule p-3 sm:px-5">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
+                <Input
+                  placeholder="Search rooms"
+                  aria-label="Search rooms"
+                  value={roomSearch}
+                  onChange={(e) => setRoomSearch(e.target.value)}
+                  className="h-9 rounded-full border-transparent bg-raised pl-9 text-sm text-white placeholder:text-faint"
+                />
+              </div>
+            </div>
+
+            {visibleRooms.length === 0 ? (
+              <div className="px-5 py-10 text-center">
+                <p className="text-sm font-medium text-white">
+                  {roomSearch.trim() ? `No rooms match “${roomSearch.trim()}”` : roomFilter === "live" ? "Nobody is in a room right now" : "No rooms here yet"}
+                </p>
+                <p className="mt-1 text-[13px] text-muted-text">
+                  {roomFilter === "live" && !roomSearch.trim() ? "Join one and the first person to follow you will see it here." : "Create one and invite people to work alongside you."}
+                </p>
+                <Button variant="outline" className="mt-4" onClick={() => setShowCreateDialog(true)}>
+                  <Plus className="h-4 w-4" />
+                  Create room
+                </Button>
+              </div>
+            ) : (
+              <ul className="divide-y divide-rule">
+                {visibleRooms.map((room) => (
+                  <li key={room.id}>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleRoomClick(room)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleRoomClick(room); }}
+                      className="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition-colors hover:bg-raised/60 focus-visible:bg-raised/60 focus-visible:outline-none sm:gap-4 sm:px-5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          {room.totalUsers > 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-positive" aria-label="Live" />}
+                          <h3 className="truncate text-[15px] font-semibold text-white">{room.name}</h3>
+                          {room.isPrivate && <Lock className="h-3.5 w-3.5 shrink-0 text-muted-text" aria-label="Private room" />}
                         </div>
-                        <p className="text-muted-text text-xs sm:text-sm">
-                          {room.description}
+                        <p className="mt-0.5 truncate text-[13px] text-muted-text">
+                          {room.category}
+                          {room.isCustom && room.creatorName ? ` · by ${room.creatorName}` : room.isCustom ? "" : " · Official"}
+                          {room.description ? ` · ${room.description}` : ""}
                         </p>
                       </div>
-                      <Badge
-                        variant="outline"
-                        className="bg-raised border-transparent text-white"
-                      >
-                        {room.category}
-                      </Badge>
-                    </div>
 
-                    {/* User Count */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-text" />
-                        <span className="text-body text-sm">
-                          {room.totalUsers}{" "}
-                          {room.totalUsers === 1 ? "person" : "people"}
-                        </span>
-                      </div>
-
-                      {room.totalUsers > 0 && (
-                        <div className="flex items-center gap-1 text-positive">
-                          <motion.div
-                            animate={{ scale: [1, 1.2, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                          >
-                            <Flame className="h-3 w-3" />
-                          </motion.div>
-                          <span className="text-xs">Live</span>
-                        </div>
-                      )}
-
-                      {room.totalUsers > 10 && (
-                        <Badge
-                          variant="outline"
-                          className="bg-flame-tint border-rule text-flame"
-                        >
-                          <TrendingUp className="h-3 w-3 mr-1" />
-                          Popular
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* User Avatars Preview */}
-                    {room.activeUsers.length > 0 && (
-                      <div className="flex items-center gap-1 mt-3">
-                        <div className="flex -space-x-2">
-                          {room.activeUsers.slice(0, 5).map((user, index) => (
-                            <Avatar
-                              key={user.id}
-                              className="h-6 w-6 border-2 border-black/40"
-                              style={{ zIndex: 5 - index }}
-                            >
-                              <img
-                                src={user.avatar}
-                                alt={user.name}
-                                className="object-cover"
-                              />
-                            </Avatar>
-                          ))}
-                        </div>
-                        {room.activeUsers.length > 5 && (
-                          <span className="text-muted-text text-xs ml-1">
-                            +{room.activeUsers.length - 5} more
-                          </span>
+                      <div className="hidden w-32 shrink-0 items-center gap-2 sm:flex">
+                        {room.activeUsers.length > 0 ? (
+                          <>
+                            <div className="flex -space-x-2">
+                              {room.activeUsers.slice(0, 3).map((user, index) => (
+                                <Avatar key={user.id} className="h-6 w-6 border-2 border-surface" style={{ zIndex: 3 - index }}>
+                                  <img src={user.avatar} alt={user.name} className="object-cover" />
+                                </Avatar>
+                              ))}
+                            </div>
+                            <span className="text-[13px] tabular-nums text-body">{room.totalUsers} here</span>
+                          </>
+                        ) : (
+                          <span className="text-[13px] text-faint">Empty</span>
                         )}
                       </div>
-                    )}
+                      <span className="shrink-0 text-[13px] tabular-nums text-muted-text sm:hidden">
+                        {room.totalUsers > 0 ? `${room.totalUsers} here` : "Empty"}
+                      </span>
 
-                    <Button
-                      variant="outline"
-                      className="w-full mt-4"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRoomClick(room);
-                      }}
-                    >
-                      Join Room
-                    </Button>
-                  </Card>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* Custom Rooms */}
-          {syncRooms.filter(r => r.isCustom).length > 0 && (
-            <>
-              <div className="flex items-center justify-between mt-4 mb-1 gap-3">
-                <h2 className="text-base font-semibold text-white flex-shrink-0">Community rooms</h2>
-                <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-text pointer-events-none" />
-                  <Input
-                    placeholder="Search rooms..."
-                    value={roomSearch}
-                    onChange={(e) => setRoomSearch(e.target.value)}
-                    className="bg-raised border-rule text-white placeholder:text-faint text-sm pl-9 h-8"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                {syncRooms.filter(r => r.isCustom && (
-                  !roomSearch.trim() ||
-                  (r.name || "").toLowerCase().includes(roomSearch.toLowerCase()) ||
-                  (r.description || "").toLowerCase().includes(roomSearch.toLowerCase()) ||
-                  (r.category || "").toLowerCase().includes(roomSearch.toLowerCase())
-                )).map((room) => (
-              <Card
-                key={room.id}
-                className="p-4 sm:p-5 border-rule bg-surface hover:bg-raised transition-colors cursor-pointer group"
-                onClick={() => handleRoomClick(room)}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-white text-base sm:text-lg group-hover:text-white transition-colors">
-                        {room.name}
-                      </h3>
-                      {room.isPrivate && (
-                        <Lock className="h-4 w-4 text-white flex-shrink-0" />
-                      )}
-                    </div>
-                    <p className="text-muted-text text-xs sm:text-sm">
-                      {room.description}
-                    </p>
-                    {room.isCustom && room.creatorName && (
-                      <p className="text-faint text-xs mt-1">
-                        Created by {room.creatorName}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1 items-end">
-                    <Badge
-                      variant="outline"
-                      className="bg-raised border-transparent text-white"
-                    >
-                      {room.category}
-                    </Badge>
-                    {room.isCustom && (
-                      <Badge
+                      <Button
                         variant="outline"
-                        className="bg-raised border-transparent text-white text-xs"
+                        size="sm"
+                        className="hidden shrink-0 sm:inline-flex"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRoomClick(room);
+                        }}
                       >
-                        Custom
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-              {/* User Count */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-muted-text" />
-                  <span className="text-body text-sm">
-                    {room.totalUsers}{" "}
-                    {room.totalUsers === 1 ? "person" : "people"}
-                  </span>
-                </div>
-
-                {room.totalUsers > 0 && (
-                  <div className="flex items-center gap-1 text-positive">
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    >
-                      <Flame className="h-3 w-3" />
-                    </motion.div>
-                    <span className="text-xs">Live</span>
-                  </div>
-                )}
-
-                {room.totalUsers > 10 && (
-                  <Badge
-                    variant="outline"
-                    className="bg-flame-tint border-rule text-flame"
-                  >
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    Popular
-                  </Badge>
-                )}
-              </div>
-
-              {/* User Avatars Preview */}
-              {room.activeUsers.length > 0 && (
-                <div className="flex items-center gap-1 mt-3">
-                  <div className="flex -space-x-2">
-                    {room.activeUsers.slice(0, 5).map((user, index) => (
-                      <Avatar
-                        key={user.id}
-                        className="h-6 w-6 border-2 border-black/40"
-                        style={{ zIndex: 5 - index }}
-                      >
-                        <img
-                          src={user.avatar}
-                          alt={user.name}
-                          className="object-cover"
-                        />
-                      </Avatar>
-                    ))}
-                  </div>
-                  {room.activeUsers.length > 5 && (
-                    <span className="text-muted-text text-xs ml-1">
-                      +{room.activeUsers.length - 5} more
-                    </span>
-                  )}
-                </div>
-              )}
-
-              <Button
-                variant="outline"
-                className="w-full mt-4"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRoomClick(room);
-                }}
-              >
-                {room.isPrivate ? (
-                  <>
-                    <Lock className="h-4 w-4 mr-2" />
-                    Join Private Room
-                  </>
-                ) : (
-                  "Join Room"
-                )}
-              </Button>
-            </Card>
-          ))}
-              </div>
-            </>
-          )}
-        </>
+                        Join
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       )}
 
       {isLoading && !joinedRoom && (
