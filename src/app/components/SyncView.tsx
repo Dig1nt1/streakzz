@@ -509,23 +509,26 @@ export function SyncView({
   const currentRoom = syncRooms.find((room) => room.id === joinedRoom);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-          <Radio className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-        </div>
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
-          <h2 className="text-white text-base sm:text-xl">Sync</h2>
-          <p className="text-gray-300 text-xs sm:text-sm">
+          <h1 className="text-xl font-semibold leading-7 text-white">Sync</h1>
+          <p className="mt-0.5 text-sm text-muted-text">
             Join others working on their streaks live or create your own room
           </p>
         </div>
+        {!joinedRoom && (
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <Plus className="h-4 w-4" />
+            Create room
+          </Button>
+        )}
       </div>
 
       {/* Joined Room View */}
       {joinedRoom && currentRoom && (
-        <Card className="p-4 sm:p-6 border-white/10 bg-black/40 backdrop-blur-md">
+        <Card className="p-4 sm:p-6 border-rule bg-surface">
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1 mr-3">
               <div className="flex items-center gap-2 mb-1">
@@ -533,21 +536,21 @@ export function SyncView({
                   {currentRoom.name}
                 </h3>
                 {currentRoom.isPrivate && (
-                  <Lock className="h-4 w-4 text-purple-500" />
+                  <Lock className="h-4 w-4 text-white" />
                 )}
                 {currentRoom.isCustom && (
-                  <Badge variant="outline" className="bg-pink-500/10 border-pink-500/20 text-pink-500 text-xs">
+                  <Badge variant="outline" className="bg-raised border-transparent text-white text-xs">
                     Custom
                   </Badge>
                 )}
               </div>
-              <p className="text-gray-400 text-sm mb-2">{currentRoom.description}</p>
+              <p className="text-muted-text text-sm mb-2">{currentRoom.description}</p>
               {currentRoom.isCustom && currentRoom.creatorName && (
-                <p className="text-gray-500 text-xs mb-1">
+                <p className="text-faint text-xs mb-1">
                   Created by {currentRoom.creatorName}
                 </p>
               )}
-              <p className="text-purple-400 text-xs">
+              <p className="text-white text-xs">
                 💡 You'll be automatically disconnected when you leave this page
               </p>
             </div>
@@ -560,7 +563,7 @@ export function SyncView({
                     }
                   }}
                   variant="outline"
-                  className="bg-gray-500/10 border-gray-500/20 text-gray-400 hover:bg-gray-500/20"
+                  className="bg-gray-500/10 border-gray-500/20 text-muted-text hover:bg-gray-500/20"
                   title="Delete room"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -578,7 +581,7 @@ export function SyncView({
           </div>
 
           {/* Active Users Count */}
-          <div className="flex items-center gap-2 mb-4 text-green-500">
+          <div className="flex items-center gap-2 mb-4 text-positive">
             <motion.div
               animate={{ scale: [1, 1.2, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
@@ -614,7 +617,7 @@ export function SyncView({
                     </Avatar>
                     {user.isActive && (
                       <motion.div
-                        className="absolute -inset-1 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 -z-10"
+                        className="absolute -inset-1 rounded-full bg-raised -z-10"
                         animate={{
                           opacity: [0.5, 1, 0.5],
                           scale: [1, 1.1, 1],
@@ -628,7 +631,7 @@ export function SyncView({
                     )}
                     <div
                       className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-black/40 ${
-                        user.isActive ? "bg-green-500" : "bg-gray-500"
+                        user.isActive ? "bg-positive" : "bg-gray-500"
                       }`}
                     />
                   </div>
@@ -641,14 +644,14 @@ export function SyncView({
           </div>
 
           {/* Room Chat */}
-          <div className="mt-5 border-t border-white/10 pt-4">
+          <div className="mt-5 border-t border-rule pt-4">
             <h4 className="text-white text-sm mb-3 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-purple-500 inline-block" />
+              <span className="h-2 w-2 rounded-full bg-white inline-block" />
               Room Chat
             </h4>
             <div className="h-52 overflow-y-auto space-y-2 mb-3 pr-1 scrollbar-thin">
               {chatMessages.length === 0 ? (
-                <p className="text-gray-500 text-xs text-center mt-16">No messages yet. Say something!</p>
+                <p className="text-faint text-xs text-center mt-16">No messages yet. Say something!</p>
               ) : (
                 chatMessages.map((msg) => {
                   const isMe = msg.userId === currentUserId;
@@ -659,12 +662,12 @@ export function SyncView({
                       </Avatar>
                       <div className={`max-w-[75%] min-w-0 w-fit ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
                         {!isMe && (
-                          <span className="text-purple-400 text-xs">{msg.userName.split(" ")[0]}</span>
+                          <span className="text-white text-xs">{msg.userName.split(" ")[0]}</span>
                         )}
                         <div className={`px-3 py-2 rounded-2xl text-sm break-words whitespace-pre-wrap overflow-wrap-anywhere w-full ${
                           isMe
-                            ? "bg-gradient-to-br from-purple-600 to-pink-600 text-white rounded-tr-sm"
-                            : "bg-white/10 text-white rounded-tl-sm"
+                            ? "bg-[#f2efe9] text-[#0e0d0c] rounded-tr-sm"
+                            : "bg-raised text-white rounded-tl-sm"
                         }`}>
                           {msg.text.split(/(\s+)/).map((part, i) => {
                             try {
@@ -699,12 +702,12 @@ export function SyncView({
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") sendChatMessage(); }}
-                className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 text-sm"
+                className="bg-raised border-rule text-white placeholder:text-faint text-sm"
               />
               <Button
                 onClick={sendChatMessage}
                 disabled={!chatInput.trim() || isSendingChat}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white flex-shrink-0"
+                className="bg-white text-black hover:bg-[#e6e3df] flex-shrink-0"
                 size="sm"
               >
                 <Send className="h-4 w-4" />
@@ -717,42 +720,31 @@ export function SyncView({
       {/* Available Rooms */}
       {!joinedRoom && (
         <>
-          {/* Create Room Button */}
-          <div className="flex justify-end">
-            <Button
-              onClick={() => setShowCreateDialog(true)}
-              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Custom Room
-            </Button>
-          </div>
-
           {/* Default Rooms */}
           {syncRooms.filter(r => !r.isCustom).length > 0 && (
             <>
-              <h3 className="text-white text-lg">Official Rooms</h3>
+              <h2 className="text-base font-semibold text-white">Official rooms</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {syncRooms.filter(r => !r.isCustom).map((room) => (
                   <Card
                     key={room.id}
-                    className="p-4 sm:p-5 border-white/10 bg-black/40 backdrop-blur-md hover:bg-black/60 transition-colors cursor-pointer group"
+                    className="p-4 sm:p-5 border-rule bg-surface hover:bg-raised transition-colors cursor-pointer group"
                     onClick={() => handleRoomClick(room)}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-white text-base sm:text-lg group-hover:text-purple-500 transition-colors">
+                          <h3 className="text-white text-base sm:text-lg group-hover:text-white transition-colors">
                             {room.name}
                           </h3>
                         </div>
-                        <p className="text-gray-400 text-xs sm:text-sm">
+                        <p className="text-muted-text text-xs sm:text-sm">
                           {room.description}
                         </p>
                       </div>
                       <Badge
                         variant="outline"
-                        className="bg-purple-500/10 border-purple-500/20 text-purple-500"
+                        className="bg-raised border-transparent text-white"
                       >
                         {room.category}
                       </Badge>
@@ -761,15 +753,15 @@ export function SyncView({
                     {/* User Count */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-300 text-sm">
+                        <Users className="h-4 w-4 text-muted-text" />
+                        <span className="text-body text-sm">
                           {room.totalUsers}{" "}
                           {room.totalUsers === 1 ? "person" : "people"}
                         </span>
                       </div>
 
                       {room.totalUsers > 0 && (
-                        <div className="flex items-center gap-1 text-green-500">
+                        <div className="flex items-center gap-1 text-positive">
                           <motion.div
                             animate={{ scale: [1, 1.2, 1] }}
                             transition={{ duration: 2, repeat: Infinity }}
@@ -783,7 +775,7 @@ export function SyncView({
                       {room.totalUsers > 10 && (
                         <Badge
                           variant="outline"
-                          className="bg-orange-500/10 border-orange-500/20 text-orange-500"
+                          className="bg-flame-tint border-rule text-flame"
                         >
                           <TrendingUp className="h-3 w-3 mr-1" />
                           Popular
@@ -810,7 +802,7 @@ export function SyncView({
                           ))}
                         </div>
                         {room.activeUsers.length > 5 && (
-                          <span className="text-gray-400 text-xs ml-1">
+                          <span className="text-muted-text text-xs ml-1">
                             +{room.activeUsers.length - 5} more
                           </span>
                         )}
@@ -818,7 +810,8 @@ export function SyncView({
                     )}
 
                     <Button
-                      className="w-full mt-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                      variant="outline"
+                      className="w-full mt-4"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleRoomClick(room);
@@ -836,14 +829,14 @@ export function SyncView({
           {syncRooms.filter(r => r.isCustom).length > 0 && (
             <>
               <div className="flex items-center justify-between mt-4 mb-1 gap-3">
-                <h3 className="text-white text-lg flex-shrink-0">Community Rooms</h3>
+                <h2 className="text-base font-semibold text-white flex-shrink-0">Community rooms</h2>
                 <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-text pointer-events-none" />
                   <Input
                     placeholder="Search rooms..."
                     value={roomSearch}
                     onChange={(e) => setRoomSearch(e.target.value)}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 text-sm pl-9 h-8"
+                    className="bg-raised border-rule text-white placeholder:text-faint text-sm pl-9 h-8"
                   />
                 </div>
               </div>
@@ -856,24 +849,24 @@ export function SyncView({
                 )).map((room) => (
               <Card
                 key={room.id}
-                className="p-4 sm:p-5 border-white/10 bg-black/40 backdrop-blur-md hover:bg-black/60 transition-colors cursor-pointer group"
+                className="p-4 sm:p-5 border-rule bg-surface hover:bg-raised transition-colors cursor-pointer group"
                 onClick={() => handleRoomClick(room)}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-white text-base sm:text-lg group-hover:text-purple-500 transition-colors">
+                      <h3 className="text-white text-base sm:text-lg group-hover:text-white transition-colors">
                         {room.name}
                       </h3>
                       {room.isPrivate && (
-                        <Lock className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                        <Lock className="h-4 w-4 text-white flex-shrink-0" />
                       )}
                     </div>
-                    <p className="text-gray-400 text-xs sm:text-sm">
+                    <p className="text-muted-text text-xs sm:text-sm">
                       {room.description}
                     </p>
                     {room.isCustom && room.creatorName && (
-                      <p className="text-gray-500 text-xs mt-1">
+                      <p className="text-faint text-xs mt-1">
                         Created by {room.creatorName}
                       </p>
                     )}
@@ -881,14 +874,14 @@ export function SyncView({
                   <div className="flex flex-col gap-1 items-end">
                     <Badge
                       variant="outline"
-                      className="bg-purple-500/10 border-purple-500/20 text-purple-500"
+                      className="bg-raised border-transparent text-white"
                     >
                       {room.category}
                     </Badge>
                     {room.isCustom && (
                       <Badge
                         variant="outline"
-                        className="bg-pink-500/10 border-pink-500/20 text-pink-500 text-xs"
+                        className="bg-raised border-transparent text-white text-xs"
                       >
                         Custom
                       </Badge>
@@ -899,15 +892,15 @@ export function SyncView({
               {/* User Count */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-gray-400" />
-                  <span className="text-gray-300 text-sm">
+                  <Users className="h-4 w-4 text-muted-text" />
+                  <span className="text-body text-sm">
                     {room.totalUsers}{" "}
                     {room.totalUsers === 1 ? "person" : "people"}
                   </span>
                 </div>
 
                 {room.totalUsers > 0 && (
-                  <div className="flex items-center gap-1 text-green-500">
+                  <div className="flex items-center gap-1 text-positive">
                     <motion.div
                       animate={{ scale: [1, 1.2, 1] }}
                       transition={{ duration: 2, repeat: Infinity }}
@@ -921,7 +914,7 @@ export function SyncView({
                 {room.totalUsers > 10 && (
                   <Badge
                     variant="outline"
-                    className="bg-orange-500/10 border-orange-500/20 text-orange-500"
+                    className="bg-flame-tint border-rule text-flame"
                   >
                     <TrendingUp className="h-3 w-3 mr-1" />
                     Popular
@@ -948,7 +941,7 @@ export function SyncView({
                     ))}
                   </div>
                   {room.activeUsers.length > 5 && (
-                    <span className="text-gray-400 text-xs ml-1">
+                    <span className="text-muted-text text-xs ml-1">
                       +{room.activeUsers.length - 5} more
                     </span>
                   )}
@@ -956,7 +949,8 @@ export function SyncView({
               )}
 
               <Button
-                className="w-full mt-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                variant="outline"
+                className="w-full mt-4"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleRoomClick(room);
@@ -986,9 +980,9 @@ export function SyncView({
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
             className="inline-block"
           >
-            <Radio className="h-8 w-8 text-purple-500" />
+            <Radio className="h-8 w-8 text-white" />
           </motion.div>
-          <p className="text-gray-400 mt-4">Loading sync rooms...</p>
+          <p className="text-muted-text mt-4">Loading sync rooms...</p>
         </div>
       )}
 

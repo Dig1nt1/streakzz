@@ -155,26 +155,23 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
       icon: Flame,
       label: "Total Streaks",
       value: user.totalStreaks,
-      color: "from-orange-500 to-red-500",
     },
     {
       icon: Trophy,
       label: "Longest Streak",
       value: `${user.longestStreak} days`,
-      color: "from-yellow-500 to-amber-500",
     },
     {
       icon: Award,
       label: "Active Streaks",
       value: user.activeStreaks,
-      color: "from-green-500 to-emerald-500",
     },
   ];
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-[14px]">
       {/* Profile Header */}
-      <Card className="p-4 sm:p-6 border-white/10 bg-black/40 backdrop-blur-md">
+      <Card className="p-[22px] gap-0 bg-surface">
         <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
           <Avatar className="h-20 w-20 sm:h-24 sm:w-24 flex-shrink-0">
             <img src={user.avatar} alt={user.name} className="object-cover" />
@@ -185,9 +182,9 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <div className="flex flex-col">
-                    <h2 className="text-white text-lg sm:text-xl">{user.alias || user.name}</h2>
+                    <h1 className="text-lg font-semibold text-white">{user.alias || user.name}</h1>
                     {user.alias && user.alias !== user.name && (
-                      <p className="text-gray-400 text-sm">{user.name}</p>
+                      <p className="text-muted-text text-sm">{user.name}</p>
                     )}
                   </div>
                   {!user.isPublic && user.isPublic !== undefined && (
@@ -201,27 +198,15 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                       {onBackToggle && (
                         <motion.button
                           onClick={() => onBackToggle(user.id)}
-                          className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[13px] transition-all text-white text-sm ${
+                          className={`relative inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full transition-colors text-sm font-semibold ${
                             isBacking 
-                              ? 'bg-gradient-to-r from-orange-500 to-red-500' 
-                              : 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600'
+                              ? 'bg-flame-tint text-flame' 
+                              : 'bg-white text-black hover:bg-[#e6e3df]'
                           }`}
-                          animate={isBacking ? {
-                            boxShadow: [
-                              '0 0 20px rgba(249, 115, 22, 0.6), 0 0 40px rgba(239, 68, 68, 0.4)',
-                              '0 0 30px rgba(249, 115, 22, 0.8), 0 0 60px rgba(239, 68, 68, 0.6)',
-                              '0 0 20px rgba(249, 115, 22, 0.6), 0 0 40px rgba(239, 68, 68, 0.4)',
-                            ]
-                          } : {}}
-                          transition={{
-                            duration: 2,
-                            repeat: isBacking ? Infinity : 0,
-                            ease: "easeInOut"
-                          }}
                         >
                           {isBacking && (
                             <motion.div 
-                              className="absolute inset-0 rounded-[13px] bg-gradient-to-r from-orange-500 to-red-500 opacity-50 blur-md"
+                              className="absolute inset-0 rounded-[13px] bg-flame-tint text-flame hidden"
                               animate={{
                                 scale: [1, 1.1, 1],
                                 opacity: [0.5, 0.7, 0.5],
@@ -236,7 +221,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                           <span className="relative z-10 inline-flex items-center gap-1.5">
                             {isBacking ? (
                               <>
-                                <Flame className="h-4 w-4 fill-white" />
+                                <Flame className="h-4 w-4 fill-current" />
                                 Backing
                               </>
                             ) : (
@@ -251,7 +236,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                       {onMessageClick && (
                         <button
                           onClick={() => onMessageClick(user.id, { name: user.alias || user.name, avatar: user.avatar })}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[13px] bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 transition-colors text-white text-sm"
+                          className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full border border-[#6a6460] text-white hover:bg-raised transition-colors text-sm font-semibold"
                         >
                           <MessageCircle className="h-4 w-4" />
                           Message
@@ -268,37 +253,37 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                       className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
                     >
                       <span className="text-white">{backerCount}</span>
-                      <span className="text-gray-400 text-sm">{backerCount === 1 ? 'backer' : 'backers'}</span>
+                      <span className="text-muted-text text-sm">{backerCount === 1 ? 'backer' : 'backers'}</span>
                     </button>
                     <button 
                       onClick={() => handleOpenBackingDialog('backing')}
                       className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
                     >
                       <span className="text-white">{backingCount}</span>
-                      <span className="text-gray-400 text-sm">backing</span>
+                      <span className="text-muted-text text-sm">backing</span>
                     </button>
                 </div>
 
                 {user.websiteLinks && user.websiteLinks.length > 0 && (
-                  <div className="flex items-center gap-2 text-gray-400 text-sm mt-1">
+                  <div className="flex items-center gap-2 text-muted-text text-sm mt-1">
                     <ExternalLink className="h-4 w-4" />
                     <div className="flex items-center gap-1">
                       <a 
                         href={user.websiteLinks[0].startsWith('http') ? user.websiteLinks[0] : `https://${user.websiteLinks[0]}`}
                         target="_blank" 
                         rel="noopener noreferrer"
-                        className="text-orange-400 hover:text-orange-300 underline transition-colors"
+                        className="text-white underline underline-offset-4 decoration-[#6a6460] hover:decoration-white"
                       >
                         {user.websiteLinks[0].replace(/^https?:\/\//, '')}
                       </a>
                       {user.websiteLinks.length > 1 && (
                         <Popover>
                           <PopoverTrigger asChild>
-                            <button className="text-orange-400 hover:text-orange-300 transition-colors cursor-pointer ml-1">
+                            <button className="text-muted-text hover:text-white transition-colors cursor-pointer ml-1">
                               and {user.websiteLinks.length - 1} other{user.websiteLinks.length - 1 > 1 ? 's' : ''}
                             </button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-80 bg-black/90 border-white/10 text-white backdrop-blur-md">
+                          <PopoverContent className="w-80 bg-surface border-rule text-white">
                             <div className="space-y-2">
                               <h4 className="font-medium mb-3">All Links</h4>
                               {user.websiteLinks.map((link, index) => (
@@ -307,7 +292,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                                   href={link.startsWith('http') ? link : `https://${link}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="flex items-center gap-2 text-orange-400 hover:text-orange-300 underline transition-colors text-sm"
+                                  className="flex items-center gap-2 text-white underline underline-offset-4 decoration-[#6a6460] hover:decoration-white text-sm"
                                 >
                                   <ExternalLink className="h-3 w-3 flex-shrink-0" />
                                   <span className="truncate">{link.replace(/^https?:\/\//, '')}</span>
@@ -325,22 +310,16 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                 <EditProfileDialog user={user} onUpdateProfile={onUpdateProfile} />
               )}
             </div>
-            <p className="text-gray-300 mb-4">{user.bio || "No bio yet"}</p>
+            <p className="text-body mb-4">{user.bio || "No bio yet"}</p>
             
             {/* Stats Grid */}
-            <div className="grid grid-cols-3 gap-4">
-              {stats.map((stat) => {
-                const Icon = stat.icon;
-                return (
-                  <div key={stat.label} className="text-center">
-                    <div className={`inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br ${stat.color} mb-2`}>
-                      <Icon className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="text-white">{stat.value}</div>
-                    <div className="text-gray-400 text-xs">{stat.label}</div>
-                  </div>
-                );
-              })}
+            <div className="grid grid-cols-3">
+              {stats.map((stat, index) => (
+                <div key={stat.label} className={index === 0 ? "pr-4" : "border-l border-rule px-4"}>
+                  <div className="text-[13px] text-muted-text">{stat.label}</div>
+                  <div className={`mt-0.5 text-2xl font-medium tabular-nums ${index === 0 && Number(user.totalStreaks) > 0 ? "text-flame" : "text-white"}`}>{stat.value}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -355,8 +334,8 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
 
         <TabsContent value="posts" className="mt-6">
           {posts.length === 0 ? (
-            <Card className="p-8 text-center border-white/10 bg-black/40 backdrop-blur-md">
-              <p className="text-gray-300">No posts yet</p>
+            <Card className="p-8 text-center border-rule bg-surface">
+              <p className="text-body">No posts yet</p>
             </Card>
           ) : (
             <div className="grid grid-cols-3 gap-1">
@@ -370,7 +349,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                 return (
                 <div 
                   key={post.id} 
-                  className="relative aspect-square group cursor-pointer overflow-hidden bg-black/20"
+                  className="relative aspect-square group cursor-pointer overflow-hidden bg-raised"
                   onClick={() => setSelectedPostId(post.id)}
                 >
                   {displayMediaType === 'video' ? (
@@ -389,11 +368,11 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                   )}
                   {/* Multi-day indicator */}
                   {post.isParentStreak && post.streakDays && post.streakDays.length > 1 && (
-                    <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 rounded-full">
-                      <span className="text-white text-xs">📅 {post.streakDays.length} days</span>
+                    <div className="absolute top-2 right-2 bg-surface px-2 py-1 rounded-full">
+                      <span className="text-white text-xs tabular-nums">{post.streakDays.length} days</span>
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                  <div className="absolute inset-0 bg-surface opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
                     <div className="flex items-center gap-1 text-white">
                       <Flame className="h-5 w-5 fill-white" />
                       <span className="font-semibold">{totalLikes}</span>
@@ -412,37 +391,37 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
 
         <TabsContent value="achievements" className="mt-6">
           {achievements.filter(a => a.unlocked).length === 0 ? (
-            <Card className="p-8 text-center border-white/10 bg-black/40 backdrop-blur-md">
-              <Trophy className="h-12 w-12 mx-auto mb-3 text-gray-500" />
-              <p className="text-gray-300 mb-2">No achievements yet</p>
-              <p className="text-gray-400 text-sm">Complete streaks and engage with the community to unlock achievements!</p>
+            <Card className="p-8 text-center border-rule bg-surface">
+              <Trophy className="h-12 w-12 mx-auto mb-3 text-faint" />
+              <p className="text-body mb-2">No achievements yet</p>
+              <p className="text-muted-text text-sm">Complete streaks and engage with the community to unlock achievements!</p>
             </Card>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {achievements.map((achievement) => (
                 <Card 
                   key={achievement.id} 
-                  className={`p-4 text-center border-white/10 backdrop-blur-md transition-all ${
+                  className={`p-4 text-center border-rule transition-all ${
                     achievement.unlocked 
-                      ? 'bg-black/40 hover:bg-black/50' 
-                      : 'bg-black/20 opacity-60'
+                      ? 'bg-surface hover:bg-raised' 
+                      : 'bg-raised opacity-60'
                   }`}
                 >
                   <div className={`h-12 w-12 mx-auto mb-2 rounded-full flex items-center justify-center text-2xl ${
                     achievement.unlocked 
-                      ? 'bg-gradient-to-br from-purple-500 to-pink-500' 
+                      ? 'bg-raised' 
                       : 'bg-gray-700'
                   }`}>
                     {achievement.unlocked ? (
                       <span>{achievement.icon}</span>
                     ) : (
-                      <LockIcon className="h-6 w-6 text-gray-400" />
+                      <LockIcon className="h-6 w-6 text-muted-text" />
                     )}
                   </div>
-                  <p className={`text-sm mb-1 ${achievement.unlocked ? 'text-white' : 'text-gray-500'}`}>
+                  <p className={`text-sm mb-1 ${achievement.unlocked ? 'text-white' : 'text-faint'}`}>
                     {achievement.name}
                   </p>
-                  <p className={`text-xs ${achievement.unlocked ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <p className={`text-xs ${achievement.unlocked ? 'text-muted-text' : 'text-faint'}`}>
                     {achievement.description}
                   </p>
                 </Card>
@@ -454,7 +433,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
 
       {/* Post Detail Dialog */}
       <Dialog open={!!selectedPost} onOpenChange={() => setSelectedPostId(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-black/95 border-white/10 text-white">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-surface border-rule text-white">
           <DialogTitle className="sr-only">
             {selectedPost?.title || "Post Details"}
           </DialogTitle>
@@ -485,7 +464,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
 
       {/* Backers/Backing Dialog */}
       <Dialog open={showBackingDialog} onOpenChange={setShowBackingDialog}>
-        <DialogContent className="max-w-md max-h-[80vh] bg-black/95 border-white/10 text-white">
+        <DialogContent className="max-w-md max-h-[80vh] bg-surface border-rule text-white">
           <DialogTitle className="text-xl mb-4">{user.alias || user.name}</DialogTitle>
           <DialogDescription className="sr-only">
             View backers and backing lists
@@ -504,14 +483,14 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
             <TabsContent value="backers" className="mt-4">
               <div className="space-y-3 max-h-[50vh] overflow-y-auto">
                 {loadingBackers ? (
-                  <div className="text-center text-gray-400 py-8">Loading...</div>
+                  <div className="text-center text-muted-text py-8">Loading...</div>
                 ) : backersList.length === 0 ? (
-                  <div className="text-center text-gray-400 py-8">No backers yet</div>
+                  <div className="text-center text-muted-text py-8">No backers yet</div>
                 ) : (
                   backersList.map((backer) => (
                     <div 
                       key={backer.id}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-black/40 hover:bg-black/60 transition-colors cursor-pointer"
+                      className="flex items-center gap-3 p-3 rounded-lg bg-surface hover:bg-raised transition-colors cursor-pointer"
                       onClick={() => {
                         onUserClick?.(backer.id);
                         setShowBackingDialog(false);
@@ -522,7 +501,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="text-white truncate">{backer.name}</p>
-                        <p className="text-gray-400 text-sm truncate">{backer.bio}</p>
+                        <p className="text-muted-text text-sm truncate">{backer.bio}</p>
                       </div>
                     </div>
                   ))
@@ -533,14 +512,14 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
             <TabsContent value="backing" className="mt-4">
               <div className="space-y-3 max-h-[50vh] overflow-y-auto">
                 {loadingBacking ? (
-                  <div className="text-center text-gray-400 py-8">Loading...</div>
+                  <div className="text-center text-muted-text py-8">Loading...</div>
                 ) : backingList.length === 0 ? (
-                  <div className="text-center text-gray-400 py-8">Not backing anyone yet</div>
+                  <div className="text-center text-muted-text py-8">Not backing anyone yet</div>
                 ) : (
                   backingList.map((backingUser) => (
                     <div 
                       key={backingUser.id}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-black/40 hover:bg-black/60 transition-colors cursor-pointer"
+                      className="flex items-center gap-3 p-3 rounded-lg bg-surface hover:bg-raised transition-colors cursor-pointer"
                       onClick={() => {
                         onUserClick?.(backingUser.id);
                         setShowBackingDialog(false);
@@ -551,7 +530,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="text-white truncate">{backingUser.alias || backingUser.name}</p>
-                        <p className="text-gray-400 text-sm truncate">{backingUser.bio}</p>
+                        <p className="text-muted-text text-sm truncate">{backingUser.bio}</p>
                       </div>
                     </div>
                   ))

@@ -8,7 +8,6 @@ import { Flame, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { getSupabaseClient } from "../utils/supabase/client";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
 import streakzLogo from "figma:asset/0b5993ed4ace0b1938a06682c91bcf77a5cd9292.png";
-import backgroundTexture from "figma:asset/6128107800268459dda51dfef463f0e68d789714.png";
 
 const safeJson = async (res: Response) => {
   try { return await res.json(); } catch { return null; }
@@ -236,35 +235,42 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
   };
 
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{
-        backgroundImage: `url(${backgroundTexture})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed',
-      }}
-    >
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <img 
-              src={streakzLogo} 
-              alt="Streakz Logo" 
-              className="h-16 w-16 drop-shadow-lg"
-            />
-            <h1 className="text-[rgb(242,83,27)] text-3xl">Streakz</h1>
+    <div className="min-h-screen bg-ground">
+      <div className="mx-auto grid min-h-screen max-w-[1120px] items-center gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-14">
+        {/* Brand and promise */}
+        <div className="flex flex-col gap-6 lg:gap-7">
+          <div className="flex items-center gap-2">
+            <img src={streakzLogo} alt="" className="h-7 w-7" />
+            <span className="text-[17px] font-semibold tracking-tight text-white">Streakz</span>
           </div>
-          <p className="text-gray-300 mb-2">
-            Track, share, and celebrate your winning streaks
-          </p>
-          <p className="text-sm text-gray-400">
-            Join the community of achievers 🔥
-          </p>
+          <img
+            src={streakzLogo}
+            alt="Streakz flame logo"
+            className="streakz-flicker hidden w-[min(280px,60%)] lg:block"
+          />
+          <div>
+            <h1 className="text-[28px] font-semibold leading-9 tracking-tight text-white sm:text-[32px] sm:leading-[38px]">Keep your streak alive</h1>
+            <p className="mt-2 max-w-[440px] text-base leading-6 text-muted-text">
+              Track, share, and celebrate your winning streaks. Join the community of achievers.
+            </p>
+          </div>
+          <dl className="hidden max-w-[520px] grid-cols-2 gap-x-7 gap-y-4 lg:grid">
+            {[
+              ["Track your streaks", "Log your daily wins and build momentum"],
+              ["Join the community", "Connect with others and share your progress"],
+              ["Compete and win", "Climb the leaderboards and earn recognition"],
+              ["Stay motivated", "Get inspired by others' achievements"],
+            ].map(([term, detail]) => (
+              <div key={term}>
+                <dt className="text-sm font-semibold text-white">{term}</dt>
+                <dd className="text-sm text-muted-text">{detail}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
 
-        <Card className="p-6 border-white/10 bg-black/40 backdrop-blur-md">
+        <div className="w-full">
+        <Card className="p-7 gap-0 bg-surface">
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
@@ -275,11 +281,11 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4 mt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email" className="text-white/80">Email</Label>
+                  <Label htmlFor="login-email" className="text-sm text-white">Email</Label>
                   <Input
                     id="login-email"
                     type="email"
-                    placeholder="you@example.com"
+                    placeholder="Your email address"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     required
@@ -288,7 +294,7 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="login-password" className="text-white/80">Password</Label>
+                  <Label htmlFor="login-password" className="text-sm text-white">Password</Label>
                   <Input
                     id="login-password"
                     type="password"
@@ -308,7 +314,7 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
 
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                  className="w-full bg-white text-black hover:bg-[#e6e3df]"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -321,14 +327,6 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
                   )}
                 </Button>
 
-                <div className="relative mt-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-border" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    
-                  </div>
-                </div>
 
                 
               </form>
@@ -338,8 +336,8 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4 mt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-alias" className="text-white/80">Username / Alias (min. 3 characters)</Label>
-                  <p className="text-xs text-gray-400">This will be your unique display name on Streakz</p>
+                  <Label htmlFor="signup-alias" className="text-sm text-white">Username / Alias (min. 3 characters)</Label>
+                  <p className="text-xs text-muted-text">This will be your unique display name on Streakz</p>
                   <div className="relative">
                     <Input
                       id="signup-alias"
@@ -353,16 +351,16 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
                         signupAlias.trim().length >= 3 && aliasAvailable === false
                           ? 'border-red-500 focus-visible:ring-red-500'
                           : signupAlias.trim().length >= 3 && aliasAvailable === true
-                          ? 'border-green-500 focus-visible:ring-green-500'
+                          ? 'border-positive focus-visible:ring-positive'
                           : ''
                       }`}
                     />
                     {signupAlias.trim().length >= 3 && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         {isCheckingAlias ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-text" />
                         ) : aliasAvailable === true ? (
-                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <CheckCircle className="h-4 w-4 text-positive" />
                         ) : aliasAvailable === false ? (
                           <XCircle className="h-4 w-4 text-red-500" />
                         ) : null}
@@ -373,16 +371,16 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
                     <p className="text-xs text-red-500 mt-1">{aliasError}</p>
                   )}
                   {signupAlias.trim().length >= 3 && aliasAvailable === true && (
-                    <p className="text-xs text-green-500 mt-1">This alias is available!</p>
+                    <p className="text-xs text-positive mt-1">This alias is available!</p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email" className="text-white/80">Email</Label>
+                  <Label htmlFor="signup-email" className="text-sm text-white">Email</Label>
                   <Input
                     id="signup-email"
                     type="email"
-                    placeholder="you@example.com"
+                    placeholder="Your email address"
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
                     required
@@ -391,7 +389,7 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password" className="text-white/80">Password</Label>
+                  <Label htmlFor="signup-password" className="text-sm text-white">Password</Label>
                   <Input
                     id="signup-password"
                     type="password"
@@ -404,7 +402,7 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-confirm" className="text-white/80">Confirm Password</Label>
+                  <Label htmlFor="signup-confirm" className="text-sm text-white">Confirm Password</Label>
                   <Input
                     id="signup-confirm"
                     type="password"
@@ -424,7 +422,7 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
 
                 <Button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                  className="w-full bg-white text-black hover:bg-[#e6e3df]"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -441,22 +439,13 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
           </Tabs>
         </Card>
 
-        <div className="mt-6 space-y-3">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-white/20" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-black/40 px-2 text-gray-400">Demo Accounts</span>
-            </div>
-          </div>
-          
-          <div className="text-center text-sm text-gray-300">
-            <p className="mb-2">Try the demo account:</p>
-            <div className="bg-black/30 rounded-lg p-3 text-left space-y-2 border border-white/10">
-              <div className="space-y-1">
-                <p><span className="text-white">Email:</span> demo@streakz.app</p>
-                <p><span className="text-white">Password:</span> demo123</p>
+        <div className="mt-[14px] space-y-4">
+          <div className="text-sm">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-[20px] bg-surface p-4">
+              <div className="min-w-[200px] flex-1 leading-[22px] text-muted-text">
+                Demo account
+                <br />
+                <span className="text-white">demo@streakz.app</span> · <span className="text-white">demo123</span>
               </div>
               <Button
                 onClick={() => {
@@ -465,16 +454,17 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
                 }}
                 variant="outline"
                 size="sm"
-                className="w-full bg-white/5 border-white/10 hover:bg-white/10 text-white"
+                className="w-full sm:w-auto"
               >
-                Use Demo Account
+                Use demo account
               </Button>
             </div>
           </div>
 
-          <p className="text-center text-gray-400 text-xs">
+          <p className="text-center text-faint text-xs">
             By continuing, you agree to Streakz's Terms of Service and Privacy Policy
           </p>
+        </div>
         </div>
       </div>
     </div>

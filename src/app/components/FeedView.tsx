@@ -1,5 +1,7 @@
 import { PostCard, Post } from "./PostCard";
-import { TrendingUp, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
+import { PageHeader } from "./PageHeader";
+import { StreakChain } from "./StreakChain";
 import { Button } from "./ui/button";
 
 interface FeedViewProps {
@@ -20,34 +22,54 @@ interface FeedViewProps {
 }
 
 export function FeedView({ posts, currentUserId, onLike, onLikeDay, onComment, onDeleteComment, onLikeComment, onDeletePost, onReplyToComment, onUserClick, onRefresh, isRefreshing, onCloseStreak, allUsers }: FeedViewProps) {
+  const myActiveStreaks = posts
+    .filter(post => post.userId === currentUserId && !post.isClosed)
+    .sort((a, b) => b.streakCount - a.streakCount);
+  const leadStreak = myActiveStreaks[0];
+
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center flex-shrink-0">
-            <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-white text-base sm:text-xl">Feed</h2>
-            <p className="text-gray-300 text-xs sm:text-sm hidden sm:block">Latest winning streaks from the community</p>
-          </div>
-        </div>
-        {onRefresh && (
+    <div>
+      <PageHeader
+        title="Feed"
+        subtitle="Latest winning streaks from the community"
+        action={onRefresh && (
           <Button
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
             onClick={onRefresh}
             disabled={isRefreshing}
-            className="bg-white/5 border-white/10 hover:bg-white/10 text-white flex-shrink-0"
+            aria-label="Refresh feed"
+            className="text-muted-text"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
         )}
-      </div>
+      />
 
-      <div className="space-y-3 sm:space-y-4 mt-4 sm:mt-6">
+      {leadStreak && (
+        <section className="mb-[14px] rounded-[20px] bg-surface p-[22px]" aria-labelledby="your-streak">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 id="your-streak" className="truncate text-base font-semibold text-white">{leadStreak.title}</h2>
+              <p className="text-sm text-muted-text">Your longest active streak · {leadStreak.category}</p>
+            </div>
+            <p className="shrink-0 text-right">
+              <span className="block text-[30px] font-semibold leading-9 text-white tabular-nums">{leadStreak.streakCount}</span>
+              <span className="text-sm text-faint">days</span>
+            </p>
+          </div>
+          <StreakChain days={leadStreak.streakCount} size="lg" />
+          {myActiveStreaks.length > 1 && (
+            <p className="mt-3 text-sm text-faint">
+              <span className="tabular-nums">{myActiveStreaks.length}</span> active streaks in total
+            </p>
+          )}
+        </section>
+      )}
+
+      <div className="space-y-[14px]">
         {posts.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
+          <div className="rounded-[20px] bg-surface py-12 text-center text-muted-text">
             No posts yet
           </div>
         ) : (

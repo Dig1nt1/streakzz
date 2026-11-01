@@ -1,3 +1,4 @@
+import type React from "react";
 import { LogOut, User as UserIcon, Settings, HelpCircle, Trash2 } from "lucide-react";
 import { Avatar } from "./ui/avatar";
 import { useState } from "react";
@@ -28,9 +29,13 @@ interface UserMenuProps {
   onViewProfile: () => void;
   onViewHelpSupport?: () => void;
   onDeleteAccount?: () => void;
+  /** Replaces the avatar button, e.g. with the "More" icon in the side rail. */
+  trigger?: React.ReactNode;
+  side?: "top" | "right" | "bottom" | "left";
+  align?: "start" | "center" | "end";
 }
 
-export function UserMenu({ userName, userAvatar, onLogout, onViewProfile, onViewHelpSupport, onDeleteAccount }: UserMenuProps) {
+export function UserMenu({ userName, userAvatar, onLogout, onViewProfile, onViewHelpSupport, onDeleteAccount, trigger, side = "bottom", align = "end" }: UserMenuProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const handleDeleteAccount = () => {
@@ -44,11 +49,13 @@ export function UserMenu({ userName, userAvatar, onLogout, onViewProfile, onView
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="relative h-10 w-10 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">
-            <img src={userAvatar} alt={userName} className="h-full w-full object-cover" />
-          </button>
+          {trigger ?? (
+            <button className="relative h-10 w-10 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2">
+              <img src={userAvatar} alt={userName} className="h-full w-full object-cover" />
+            </button>
+          )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56" align="end" forceMount>
+        <DropdownMenuContent className="w-56" side={side} align={align} sideOffset={8} forceMount>
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
               <p className="text-sm leading-none">{userName}</p>
@@ -88,16 +95,16 @@ export function UserMenu({ userName, userAvatar, onLogout, onViewProfile, onView
       </DropdownMenu>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="bg-black/95 border-white/10 text-white">
+        <AlertDialogContent className="bg-surface border-rule text-white">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Account Permanently?</AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-400">
+            <AlertDialogDescription className="text-muted-text">
               This action cannot be undone. This will permanently delete your account,
               all your posts, streaks, and free up your username for others to use.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+            <AlertDialogCancel className="bg-raised border-rule text-white hover:bg-[#363330]">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction 
