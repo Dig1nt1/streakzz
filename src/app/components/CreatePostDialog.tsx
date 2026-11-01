@@ -39,7 +39,9 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
   const [streakCount, setStreakCount] = useState("1");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  // imageUrl is a local preview until Post is pressed; only then is mediaFile uploaded
   const [imageUrl, setImageUrl] = useState("");
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
   const [isUploading, setIsUploading] = useState(false);
   const [selectedStreakId, setSelectedStreakId] = useState<string>("");
@@ -53,31 +55,68 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
     );
   }, [userPosts, currentUserId]);
 
-  const handleSubmit = () => {
-    if (!isUploading && category && streakCount && title && description && imageUrl) {
-      onCreatePost({
-        category,
-        streakCount: parseInt(streakCount),
-        title,
-        description,
-        imageUrl,
-        mediaType,
-      });
-      
-      resetForm();
+  // Uploads the chosen file to storage; returns its link, or null after telling the user why
+  const uploadSelected = async (): Promise<string | null> => {
+    if (!mediaFile) return null;
+    const formData = new FormData();
+    formData.append('file', mediaFile);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/upload-media`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken || publicAnonKey}`,
+          },
+          body: formData,
+        }
+      );
+      const { url } = response.ok ? await response.json() : { url: null };
+      if (!url) throw new Error('Upload failed');
+      return url;
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error(mediaType === 'video' ? 'Failed to upload video. Please try again.' : 'Failed to upload image. Please try again.');
+      return null;
     }
   };
 
-  const handleAddToStreak = () => {
-    if (!isUploading && selectedStreakId && description && imageUrl && onAddToStreak) {
-      onAddToStreak(selectedStreakId, {
-        description,
-        imageUrl,
-        mediaType,
-      });
-      
-      resetForm();
-    }
+  const handleSubmit = async () => {
+    if (isUploading || !category || !streakCount || !title || !description || !mediaFile) return;
+    setIsUploading(true);
+    const url = await uploadSelected();
+    setIsUploading(false);
+    if (!url) return;
+    onCreatePost({
+      category,
+      streakCount: parseInt(streakCount),
+      title,
+      description,
+      imageUrl: url,
+      mediaType,
+    });
+    resetForm();
+  };
+
+  const handleAddToStreak = async () => {
+    if (isUploading || !selectedStreakId || !description || !mediaFile || !onAddToStreak) return;
+    setIsUploading(true);
+    const url = await uploadSelected();
+    setIsUploading(false);
+    if (!url) return;
+    onAddToStreak(selectedStreakId, {
+      description,
+      imageUrl: url,
+      mediaType,
+    });
+    resetForm();
+  };
+
+  const clearMedia = () => {
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    setImageUrl("");
+    setMediaFile(null);
+    setMediaType('image');
   };
 
   const resetForm = () => {
@@ -85,8 +124,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
     setStreakCount("1");
     setTitle("");
     setDescription("");
-    setImageUrl("");
-    setMediaType('image');
+    clearMedia();
     setSelectedStreakId("");
     setOpen(false);
   };
@@ -94,15 +132,14 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (file) uploadFile(file);
+    if (file) chooseFile(file);
   };
 
-  const uploadFile = async (file: File) => {
-
-    // Validate file type
+  // Choosing a file only previews it on this device; nothing is uploaded until Post
+  const chooseFile = (file: File) => {
     const isImage = file.type.startsWith('image/');
     const isVideo = file.type.startsWith('video/');
-    
+
     if (!isImage && !isVideo) {
       toast.error('Please select an image or video file');
       return;
@@ -115,43 +152,10 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
       return;
     }
 
-    setIsUploading(true);
-
-    try {
-      // Upload to Supabase Storage via server
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/upload-media`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken || publicAnonKey}`,
-          },
-          body: formData,
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to upload file');
-      }
-
-      const { url } = await response.json();
-      if (!url) {
-        throw new Error('Upload response missing url');
-      }
-      // Set url and type together so they never disagree
-      setImageUrl(url);
-      setMediaType(isVideo ? 'video' : 'image');
-    } catch (error) {
-      console.error('Upload error:', error);
-      setImageUrl("");
-      setMediaType('image');
-      toast.error(isVideo ? 'Failed to upload video' : 'Failed to upload image');
-    } finally {
-      setIsUploading(false);
-    }
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    setMediaFile(file);
+    setImageUrl(URL.createObjectURL(file));
+    setMediaType(isVideo ? 'video' : 'image');
   };
 
   const categories = [
@@ -178,7 +182,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
       <label
         htmlFor={id}
         onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files?.[0]; if (file && !isUploading) uploadFile(file); }}
+        onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files?.[0]; if (file && !isUploading) chooseFile(file); }}
         className={`group relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-[16px] bg-raised transition-colors [&:has(:focus-visible)]:ring-2 [&:has(:focus-visible)]:ring-white ${imageUrl ? "aspect-[16/10]" : "h-36 border border-dashed border-[#4a4643] hover:border-[#8a837d]"}`}
       >
         {imageUrl ? (
@@ -215,7 +219,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
       <div className="flex items-center justify-between">
         <p id={`${id}-limit`} className="text-xs text-faint">Images up to 5 MB, videos up to 50 MB</p>
         {imageUrl && !isUploading && (
-          <button type="button" onClick={() => { setImageUrl(""); setMediaType("image"); }} className="inline-flex items-center gap-1 text-xs font-medium text-muted-text hover:text-white">
+          <button type="button" onClick={clearMedia} className="inline-flex items-center gap-1 text-xs font-medium text-muted-text hover:text-white">
             <X className="h-3.5 w-3.5" />Remove
           </button>
         )}
@@ -224,7 +228,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
   );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => { if (!isUploading) setOpen(next); }}>
       <DialogTrigger asChild>
         {trigger ?? (
           <Button className="gap-2">
@@ -281,9 +285,9 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
             <div className="flex items-center justify-between gap-3 border-t border-rule px-6 py-4">
               <span className="hidden text-xs text-faint sm:block">Starts at day 1</span>
               <div className="ml-auto flex gap-2">
-                <Button variant="ghost" onClick={() => setOpen(false)} className="text-muted-text">Cancel</Button>
-                <Button onClick={handleSubmit} disabled={isUploading || !category || !streakCount || !title || !description || !imageUrl}>
-                  Create streak
+                <Button variant="ghost" onClick={() => setOpen(false)} disabled={isUploading} className="text-muted-text">Cancel</Button>
+                <Button onClick={handleSubmit} disabled={isUploading || !category || !streakCount || !title || !description || !mediaFile}>
+                  {isUploading ? <><Loader2 className="h-4 w-4 animate-spin" />Uploading…</> : "Create streak"}
                 </Button>
               </div>
             </div>
@@ -346,9 +350,9 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                 {selectedStreak ? `Adds day ${nextDayOf(selectedStreak)} to ${selectedStreak.title}` : "Pick a streak to continue"}
               </span>
               <div className="ml-auto flex gap-2">
-                <Button variant="ghost" onClick={() => setOpen(false)} className="text-muted-text">Cancel</Button>
-                <Button onClick={handleAddToStreak} disabled={isUploading || !selectedStreakId || !description || !imageUrl}>
-                  {selectedStreak ? `Add day ${nextDayOf(selectedStreak)}` : "Add day"}
+                <Button variant="ghost" onClick={() => setOpen(false)} disabled={isUploading} className="text-muted-text">Cancel</Button>
+                <Button onClick={handleAddToStreak} disabled={isUploading || !selectedStreakId || !description || !mediaFile}>
+                  {isUploading ? <><Loader2 className="h-4 w-4 animate-spin" />Uploading…</> : selectedStreak ? `Add day ${nextDayOf(selectedStreak)}` : "Add day"}
                 </Button>
               </div>
             </div>
