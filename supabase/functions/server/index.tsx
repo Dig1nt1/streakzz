@@ -106,6 +106,65 @@ const kvEntries = async (prefix: string): Promise<{ key: string; value: any }[]>
   return (data ?? []).filter((row: any) => row.key.startsWith(prefix));
 };
 
+// Photos, videos and voice messages live in the posts bucket under the sender's id;
+// records keep only a signed link to the file.
+const MEDIA_BUCKET = "make-1f5afd66-posts";
+const MEDIA_LIMITS: Record<string, number> = {
+  image: 15 * 1024 * 1024,
+  video: 50 * 1024 * 1024,
+  audio: 5 * 1024 * 1024,
+};
+const MEDIA_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp", "image/heic": "heic",
+  "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov",
+  "audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/mpeg": "mp3", "audio/aac": "aac", "audio/wav": "wav",
+};
+const mediaKind = (contentType: string) => contentType.split("/")[0];
+const isStoredMediaUrl = (url: unknown) =>
+  typeof url === "string" && url.startsWith("https://") && url.includes(`/storage/v1/object/sign/${MEDIA_BUCKET}/`);
+
+const storeMedia = async (uid: string, bytes: ArrayBuffer | Uint8Array, contentType: string) => {
+  const baseType = contentType.split(";")[0].trim().toLowerCase();
+  const path = `${uid}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${MEDIA_EXTENSIONS[baseType] || "bin"}`;
+  const bucket = serviceClient().storage.from(MEDIA_BUCKET);
+  const { error } = await bucket.upload(path, bytes, { contentType: baseType, upsert: false });
+  if (error) throw new Error(error.message);
+  const { data } = await bucket.createSignedUrl(path, 31536000); // 1 year
+  return { url: data?.signedUrl as string, path };
+};
+
+// Older chats kept photos inside the conversation record as base64 text, twice (one copy per
+// person). Move them to storage the first time the conversation is loaded.
+const moveInlineChatMedia = async (conversations: any[]) => {
+  for (const conversation of conversations) {
+    const inline = (conversation.messages || []).filter((m: any) => typeof m.mediaUrl === "string" && m.mediaUrl.startsWith("data:"));
+    if (!inline.length || typeof conversation.id !== "string") continue;
+    const [, ownerId, otherId] = conversation.id.split(":");
+    const moved = new Map<string, { url: string; path: string }>();
+    for (const message of inline) {
+      const match = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(message.mediaUrl);
+      if (!match || !match[2]) continue;
+      try {
+        const bytes = Uint8Array.from(atob(match[3]), (ch) => ch.charCodeAt(0));
+        const sender = message.senderId === otherId ? otherId : ownerId;
+        moved.set(message.id, await storeMedia(sender, bytes, match[1]));
+      } catch (error) {
+        console.error(`Couldn't move media for message ${message.id}:`, error);
+      }
+    }
+    if (!moved.size) continue;
+    const swap = (m: any) => (moved.has(m.id) ? { ...m, mediaUrl: moved.get(m.id)!.url, mediaPath: moved.get(m.id)!.path } : m);
+    // Re-read each copy just before writing so a message sent meanwhile isn't lost
+    for (const key of [conversation.id, `conversation:${otherId}:${ownerId}`]) {
+      const fresh = await kv.get(key);
+      if (!fresh?.messages) continue;
+      fresh.messages = fresh.messages.map(swap);
+      await kv.set(key, fresh);
+    }
+    conversation.messages = conversation.messages.map(swap);
+  }
+};
+
 // Remove everything a deleted user left behind: their posts and uploads, their comments,
 // replies and likes on other people's posts, both sides of their chats, message likes,
 // backing records, Sync rooms they created, and their presence and messages in other rooms.
@@ -500,33 +559,16 @@ app.post("/make-server-1f5afd66/upload-media", async (c) => {
       return c.json({ error: 'No file provided' }, 400);
     }
 
-    const bucketName = 'make-1f5afd66-posts';
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-    const fileBuffer = await file.arrayBuffer();
-
-    const { error: uploadError } = await supabase.storage
-      .from(bucketName)
-      .upload(fileName, fileBuffer, {
-        contentType: file.type,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
-      return c.json({ error: uploadError.message }, 500);
+    const limit = MEDIA_LIMITS[mediaKind(file.type || "")];
+    if (!limit) {
+      return c.json({ error: 'Only photos, videos and voice messages can be uploaded' }, 400);
+    }
+    if (file.size > limit) {
+      return c.json({ error: `That file is too large (limit ${Math.round(limit / 1024 / 1024)} MB)` }, 413);
     }
 
-    // Get signed URL valid for 1 year
-    const { data: signedUrlData } = await supabase.storage
-      .from(bucketName)
-      .createSignedUrl(fileName, 31536000); // 1 year in seconds
-
-    return c.json({
-      url: signedUrlData?.signedUrl,
-      path: fileName
-    });
+    const stored = await storeMedia(user.id, await file.arrayBuffer(), file.type);
+    return c.json(stored);
   } catch (error: any) {
     console.error("Error uploading media:", error);
     return c.json({ error: error.message || "Internal server error" }, 500);
@@ -886,6 +928,8 @@ app.get("/make-server-1f5afd66/conversations", async (c) => {
       return conv;
     });
 
+    await moveInlineChatMedia(validConversations);
+
     return c.json(validConversations);
   } catch (error: any) {
     console.error("Error fetching conversations:", error);
@@ -1004,23 +1048,43 @@ app.post("/make-server-1f5afd66/conversations/:otherUserId/messages", async (c) 
       conversation2.messages = [];
     }
 
-    // Create the new message
+    // Build the message from known fields only; media must already be in storage
+    const text = typeof messageData.text === 'string' ? messageData.text.slice(0, 4000) : '';
+    const media: Record<string, unknown> = {};
+    if (messageData.mediaUrl) {
+      if (!isStoredMediaUrl(messageData.mediaUrl) || !['image', 'video', 'audio'].includes(messageData.mediaType)) {
+        return c.json({ error: 'Upload the file before sending it' }, 400);
+      }
+      media.mediaUrl = messageData.mediaUrl;
+      media.mediaType = messageData.mediaType;
+      if (typeof messageData.mediaPath === 'string' && messageData.mediaPath.startsWith(`${user.id}/`)) media.mediaPath = messageData.mediaPath;
+      if (messageData.mediaType === 'audio' && Number.isFinite(messageData.duration)) media.duration = Math.min(600, Math.max(0, Math.round(messageData.duration)));
+    }
+    if (!text.trim() && !media.mediaUrl) {
+      return c.json({ error: 'Message is empty' }, 400);
+    }
+
     const newMessage = {
-      ...messageData,
       id: `msg:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`,
       senderId: user.id,
+      text,
+      timestamp: typeof messageData.timestamp === 'string' ? messageData.timestamp.slice(0, 20) : '',
       sentAt: Date.now(),
+      likes: 0,
+      likedBy: [],
+      ...media,
     };
+    const preview = text || ({ audio: 'Voice message', video: 'Video', image: 'Photo' } as Record<string, string>)[media.mediaType as string];
 
     console.log(`Created message ${newMessage.id} from ${user.id}`);
 
     // Add message to both conversations
     conversation1.messages.push(newMessage);
-    conversation1.lastMessage = messageData.text || '📷 Media';
+    conversation1.lastMessage = preview;
     conversation1.lastMessageTime = new Date().toISOString();
 
     conversation2.messages.push(newMessage);
-    conversation2.lastMessage = messageData.text || '📷 Media';
+    conversation2.lastMessage = preview;
     conversation2.lastMessageTime = new Date().toISOString();
     conversation2.unread = (conversation2.unread || 0) + 1;
 
@@ -1064,6 +1128,10 @@ app.delete("/make-server-1f5afd66/conversations/:otherUserId/messages/:messageId
     const target = (conversation1?.messages || conversation2?.messages || []).find((msg: any) => msg.id === messageId);
     if (!target) return c.json({ error: 'Message not found' }, 404);
     if (target.senderId !== user.id) return c.json({ error: 'Forbidden' }, 403);
+    if (typeof target.mediaPath === 'string' && target.mediaPath.startsWith(`${user.id}/`)) {
+      const { error: removeError } = await serviceClient().storage.from(MEDIA_BUCKET).remove([target.mediaPath]);
+      if (removeError) console.error("Couldn't remove unsent media:", removeError);
+    }
 
     if (conversation1) {
       conversation1.messages = conversation1.messages.filter(msg => msg.id !== messageId);

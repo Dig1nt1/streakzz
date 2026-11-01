@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Search, MoreVertical, Flame, MessageSquare, ImagePlus, X, Trash2, Clock, ChevronLeft } from "lucide-react";
+import { Send, Search, MoreVertical, Flame, MessageSquare, ImagePlus, X, Trash2, Clock, ChevronLeft, Mic } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Avatar } from "./ui/avatar";
 import { Button } from "./ui/button";
@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
 import { toast } from "sonner";
+import { useVoiceRecorder, VoiceNotePlayer, VoiceRecording, formatSeconds } from "./VoiceNote";
 
 interface Message {
   id: string;
@@ -19,7 +20,9 @@ interface Message {
   likes: number;
   isLiked: boolean;
   mediaUrl?: string;
-  mediaType?: 'image' | 'video';
+  mediaPath?: string;
+  mediaType?: 'image' | 'video' | 'audio';
+  duration?: number; // voice messages, in seconds
 }
 
 interface Conversation {
@@ -32,6 +35,9 @@ interface Conversation {
   unread: number;
   messages: Message[];
 }
+
+// Older chats were saved with this preview text for photos
+const LEGACY_MEDIA_PREVIEW = "\u{1F4F7} Media";
 
 interface MessagesViewProps {
   currentUserId: string;
@@ -289,16 +295,27 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
     return () => clearInterval(interval);
   }, [selectedConversation?.userId, accessToken]);
 
+  const mediaLabel = (type?: Message['mediaType']) => (type === 'audio' ? 'Voice message' : type === 'video' ? 'Video' : 'Photo');
+
+  // Voice messages: up to two minutes, sent when the limit is reached
+  const VOICE_LIMIT = 120;
+  const voice = useVoiceRecorder(VOICE_LIMIT, () => finishVoice(true));
+  const finishVoice = async (send: boolean) => {
+    const recording = await voice.stop(send);
+    if (recording) handleSendMessage(recording);
+  };
+
+  // Leaving a conversation throws away a recording in progress
+  useEffect(() => {
+    if (voice.recording) voice.stop(false);
+  }, [selectedConversation?.id]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedMedia(file);
-      // Convert file to base64 data URL for persistent storage
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setMediaPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      // A local preview only; the file itself is uploaded to storage when sent
+      setMediaPreview(URL.createObjectURL(file));
     }
   };
 
@@ -316,14 +333,16 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
     setSelectedConversation(prev => (prev && prev.id === convId ? update(prev) : prev));
   };
 
-  const handleSendMessage = async () => {
+  // A voice message is sent on its own, without the typed text
+  const handleSendMessage = async (voice?: VoiceRecording) => {
     if (isSendingRef.current) return;
-    if ((!messageText.trim() && !selectedMedia) || !selectedConversation) return;
+    if ((!voice && !messageText.trim() && !selectedMedia) || !selectedConversation) return;
 
     const conv = selectedConversation;
-    const text = messageText;
-    const media = selectedMedia;
-    const preview = mediaPreview;
+    const text = voice ? "" : messageText;
+    const media: Blob | null = voice ? voice.blob : selectedMedia;
+    const preview = voice ? URL.createObjectURL(voice.blob) : mediaPreview;
+    const mediaType = !media ? undefined : media.type.startsWith('audio/') ? 'audio' : media.type.startsWith('video/') ? 'video' : 'image';
     const previousLastMessage = conv.lastMessage;
     const previousLastMessageTime = conv.lastMessageTime;
 
@@ -339,15 +358,18 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
       isLiked: false,
       ...(media && {
         mediaUrl: preview || '',
-        mediaType: media.type.startsWith('video/') ? 'video' : 'image',
+        mediaType,
+        ...(voice && { duration: Math.round(voice.duration) }),
       }),
     };
 
-    const lastMessageText = text || (media?.type.startsWith('video/') ? 'Video' : 'Photo');
+    const lastMessageText = text || mediaLabel(mediaType);
 
     // Clear the input and show the message immediately
-    setMessageText("");
-    handleRemoveMedia();
+    if (!voice) {
+      setMessageText("");
+      handleRemoveMedia();
+    }
     updateConversationById(conv.id, (c) => ({
       ...c,
       messages: [...c.messages, newMessage],
@@ -364,10 +386,11 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
         lastMessage: previousLastMessage,
         lastMessageTime: previousLastMessageTime,
       }));
+      if (voice) return;
       // Restore what the user typed, unless they've already started a new message
       setMessageText((current) => (current ? current : text));
       if (media) {
-        setSelectedMedia(media);
+        setSelectedMedia(media as File);
         setMediaPreview(preview);
       }
     };
@@ -375,6 +398,25 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
     isSendingRef.current = true;
     setIsSending(true);
     try {
+      // Photos, videos and voice go to file storage first; the message keeps only the link
+      let uploaded: { url: string; path: string } | null = null;
+      if (media) {
+        const form = new FormData();
+        const extension = media.type.split('/')[1]?.split(';')[0] || 'bin';
+        form.append('file', media, media instanceof File ? media.name : `voice.${extension}`);
+        const upload = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/upload-media`,
+          { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: form }
+        );
+        uploaded = upload.ok ? await upload.json().catch(() => null) : null;
+        if (!uploaded?.url) {
+          rollback();
+          const reason = await upload.json().catch(() => null);
+          toast.error(reason?.error || (voice ? "Voice message wasn't sent" : "Couldn't upload that file"));
+          return;
+        }
+      }
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/conversations/${conv.userId}/messages`,
         {
@@ -383,7 +425,11 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(newMessage),
+          body: JSON.stringify({
+            text,
+            timestamp: newMessage.timestamp,
+            ...(uploaded && { mediaUrl: uploaded.url, mediaPath: uploaded.path, mediaType, duration: newMessage.duration }),
+          }),
         }
       );
 
@@ -438,7 +484,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
       return {
         ...c,
         messages: updatedMessages,
-        lastMessage: lastMsg?.text || (lastMsg?.mediaType === 'video' ? 'Video' : lastMsg?.mediaUrl ? 'Photo' : 'No messages'),
+        lastMessage: lastMsg?.text || (lastMsg?.mediaUrl ? mediaLabel(lastMsg.mediaType) : 'No messages'),
         lastMessageTime: lastMsg?.timestamp || '',
       };
     });
@@ -706,7 +752,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                           <span className={`shrink-0 text-xs ${unread ? "text-white" : "text-faint"}`}>{listTime(conversation)}</span>
                         </span>
                         <span className="mt-0.5 flex items-center gap-2">
-                          <span className={`truncate text-sm ${unread ? "text-white" : "text-muted-text"}`}>{conversation.lastMessage}</span>
+                          <span className={`truncate text-sm ${unread ? "text-white" : "text-muted-text"}`}>{conversation.lastMessage === LEGACY_MEDIA_PREVIEW ? 'Photo' : conversation.lastMessage}</span>
                           {unread && <span className="ml-auto h-2.5 w-2.5 shrink-0 rounded-full bg-flame" aria-label="Unread" />}
                         </span>
                       </span>
@@ -790,9 +836,12 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                           <div
                             onClick={() => setActiveMessageId(active ? null : message.id)}
                             onDoubleClick={() => { if (!message.isLiked) handleLikeMessage(message.id); }}
-                            className={`relative cursor-pointer select-text overflow-hidden rounded-[20px] ${corner} ${mine ? "bg-[#f2efe9] text-[#0e0d0c]" : "bg-raised text-white"} ${message.mediaUrl && !message.text ? "" : "px-3.5 py-2"}`}
+                            className={`relative cursor-pointer select-text overflow-hidden rounded-[20px] ${corner} ${mine ? "bg-[#f2efe9] text-[#0e0d0c]" : "bg-raised text-white"} ${message.mediaType === "audio" ? "px-2 py-1.5" : message.mediaUrl && !message.text ? "" : "px-3.5 py-2"}`}
                           >
-                            {message.mediaUrl && (
+                            {message.mediaUrl && message.mediaType === "audio" && (
+                              <VoiceNotePlayer src={message.mediaUrl} duration={message.duration} mine={mine} />
+                            )}
+                            {message.mediaUrl && message.mediaType !== "audio" && (
                               <div className={message.text ? "-mx-3.5 -mt-2 mb-2" : ""}>
                                 {message.mediaType === "video" ? (
                                   <video src={message.mediaUrl} controls className="max-h-72 w-full" />
@@ -883,6 +932,31 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                   </button>
                 </div>
               )}
+              {voice.recording ? (
+                <div className="flex items-center gap-2" role="status" aria-label="Recording a voice message">
+                  <button
+                    onClick={() => finishVoice(false)}
+                    aria-label="Discard recording"
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-text hover:bg-raised hover:text-white"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </button>
+                  <div className="flex h-10 flex-1 items-center gap-2.5 rounded-full bg-raised px-4">
+                    <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-[#ff4d4d]" /> {/* taste-skill-ignore: live recording indicator */}
+                    <span className="text-[15px] tabular-nums text-white">{formatSeconds(voice.elapsed)}</span>
+                    <span className="truncate text-sm text-faint">
+                      {VOICE_LIMIT - voice.elapsed <= 15 ? `Sends at ${formatSeconds(VOICE_LIMIT)}` : "Recording"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => finishVoice(true)}
+                    aria-label="Send voice message"
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-black"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
               <div className="flex items-end gap-2">
                 <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
                 <button
@@ -900,15 +974,28 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                   onKeyDown={(e) => e.key === "Enter" && !isSending && handleSendMessage()}
                   className="h-10 flex-1 rounded-full border-transparent bg-raised px-4 text-[15px] text-white placeholder:text-faint"
                 />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={isSending || (!messageText.trim() && !selectedMedia)}
-                  aria-label="Send"
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-black transition-opacity disabled:opacity-40"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
+                {/* With nothing typed or attached, the send button becomes the microphone */}
+                {!messageText.trim() && !selectedMedia ? (
+                  <button
+                    onClick={voice.start}
+                    disabled={isSending}
+                    aria-label="Record a voice message"
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-raised text-white transition-colors hover:bg-[#363330] disabled:opacity-40"
+                  >
+                    <Mic className="h-5 w-5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleSendMessage()}
+                    disabled={isSending}
+                    aria-label="Send"
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-black transition-opacity disabled:opacity-40"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                )}
               </div>
+              )}
             </div>
           </>
         ) : (
