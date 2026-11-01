@@ -827,6 +827,17 @@ app.get("/make-server-1f5afd66/conversations/:otherUserId/messages", async (c) =
       conversation.messages = [];
     }
 
+    // The requester has now seen this conversation: reset their unread count
+    if ((conversation.unread || 0) > 0) {
+      conversation.unread = 0;
+      // Re-read right before writing to avoid overwriting a message that just arrived
+      const latest = await kv.get(conversationKey);
+      if (latest) {
+        latest.unread = 0;
+        await kv.set(conversationKey, latest);
+      }
+    }
+
     return c.json(conversation);
   } catch (error: any) {
     console.error("Error fetching messages:", error);

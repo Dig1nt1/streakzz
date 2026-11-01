@@ -93,10 +93,14 @@ export function ArenaView({
       }
 
       // Filter by search query for posts
+      const query = searchQuery.toLowerCase();
+      const authorAlias = (post as { userAlias?: string }).userAlias;
       const matchesSearch = searchQuery.trim() === "" || 
-        post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        post.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        post.category.toLowerCase().includes(searchQuery.toLowerCase());
+        post.title.toLowerCase().includes(query) ||
+        post.description.toLowerCase().includes(query) ||
+        post.category.toLowerCase().includes(query) ||
+        (post.userName || "").toLowerCase().includes(query) ||
+        (!!authorAlias && authorAlias.toLowerCase().includes(query));
 
       return matchesSearch && matchesCategory;
     });

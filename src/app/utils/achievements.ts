@@ -65,7 +65,7 @@ export const ACHIEVEMENT_DEFINITIONS = [
     description: "Have 3 active streaks simultaneously",
     icon: "⭐",
     criteria: (posts: Post[]) => {
-      const activeParentStreaks = posts.filter(post => post.isParentStreak);
+      const activeParentStreaks = posts.filter(post => post.isParentStreak && !post.isClosed);
       return activeParentStreaks.length >= 3;
     },
   },

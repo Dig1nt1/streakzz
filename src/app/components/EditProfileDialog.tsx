@@ -6,6 +6,7 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { Edit2, Loader2, X, Plus, Camera, Link as LinkIcon, Globe, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { projectId } from "../utils/supabase/info";
 
 interface EditProfileDialogProps {
   user: {
@@ -23,9 +24,11 @@ interface EditProfileDialogProps {
     isPublic: boolean;
     websiteLinks: string[];
   }) => void;
+  /** Signed-in user's access token; when present the avatar is uploaded via /upload-media instead of inlined as a data URL. */
+  accessToken?: string;
 }
 
-export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogProps) {
+export function EditProfileDialog({ user, onUpdateProfile, accessToken }: EditProfileDialogProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(user.name);
   const [bio, setBio] = useState(user.bio);
@@ -35,6 +38,20 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
     user.websiteLinks && user.websiteLinks.length > 0 ? user.websiteLinks : [""]
   );
   const [isUploading, setIsUploading] = useState(false);
+
+  const resetFromUser = () => {
+    setName(user.name);
+    setBio(user.bio);
+    setAvatar(user.avatar);
+    setIsPublic(user.isPublic ?? true);
+    setWebsiteLinks(user.websiteLinks && user.websiteLinks.length > 0 ? user.websiteLinks : [""]);
+  };
+
+  const handleOpen = () => {
+    // Re-initialise from the latest profile every time the dialog opens
+    resetFromUser();
+    setOpen(true);
+  };
 
   const handleSubmit = () => {
     if (!name.trim()) {
@@ -53,17 +70,12 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
       websiteLinks: filteredLinks,
     });
 
-    toast.success("Profile updated successfully!");
     setOpen(false);
   };
 
   const handleCancel = () => {
     // Reset to original values
-    setName(user.name);
-    setBio(user.bio);
-    setAvatar(user.avatar);
-    setIsPublic(user.isPublic ?? true);
-    setWebsiteLinks(user.websiteLinks && user.websiteLinks.length > 0 ? user.websiteLinks : [""]);
+    resetFromUser();
     setOpen(false);
   };
 
@@ -71,7 +83,7 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
     setAvatar(url);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -89,7 +101,43 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
 
     setIsUploading(true);
 
-    // Convert to data URL
+    if (accessToken) {
+      // Upload to storage via server (same request shape as CreatePostDialog)
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/upload-media`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to upload file');
+        }
+
+        const { url } = await response.json();
+        if (!url) {
+          throw new Error('Upload response missing url');
+        }
+        setAvatar(url);
+      } catch (error) {
+        console.error('Avatar upload error:', error);
+        toast.error('Failed to upload image');
+      } finally {
+        setIsUploading(false);
+        e.target.value = '';
+      }
+      return;
+    }
+
+    // No access token: fall back to a data URL
     const reader = new FileReader();
     reader.onloadend = () => {
       setAvatar(reader.result as string);
@@ -132,7 +180,7 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
     "h-11 rounded-xl border-transparent bg-raised px-3.5 text-[15px] text-white placeholder:text-faint focus-visible:border-[#6a6460]";
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : handleCancel())}>
+    <Dialog open={open} onOpenChange={(next) => (next ? handleOpen() : handleCancel())}>
       <DialogTrigger asChild>
         <Button variant="outline" className="gap-2">
           <Edit2 className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Flame, Trophy, Award, Lock, Heart, MessageCircle, ExternalLink, LockIcon, UserPlus, UserCheck } from "lucide-react";
 import { motion } from "motion/react";
 import { Card } from "./ui/card";
@@ -52,6 +52,8 @@ interface ProfileViewProps {
   backingCount?: number;
   backerCount?: number;
   allUsers?: Array<{ id: string; name: string; avatar: string }>;
+  /** Signed-in user's access token, used by EditProfileDialog to upload the avatar. */
+  accessToken?: string | null;
 }
 
 interface BackingUser {
@@ -61,7 +63,7 @@ interface BackingUser {
   bio: string;
 }
 
-export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onComment, onDeleteComment, onLikeComment, onDeletePost, onCloseStreak, onUpdateProfile, isOwnProfile = true, onReplyToComment, onUserClick, onMessageClick, isBacking = false, onBackToggle, backingCount = 0, backerCount = 0, allUsers = [] }: ProfileViewProps) {
+export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onComment, onDeleteComment, onLikeComment, onDeletePost, onCloseStreak, onUpdateProfile, isOwnProfile = true, onReplyToComment, onUserClick, onMessageClick, isBacking = false, onBackToggle, backingCount = 0, backerCount = 0, allUsers = [], accessToken }: ProfileViewProps) {
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [showBackingDialog, setShowBackingDialog] = useState(false);
   const [backingDialogTab, setBackingDialogTab] = useState<'backers' | 'backing'>('backers');
@@ -69,6 +71,21 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
   const [backingList, setBackingList] = useState<BackingUser[]>([]);
   const [loadingBackers, setLoadingBackers] = useState(false);
   const [loadingBacking, setLoadingBacking] = useState(false);
+  // Tracks which profile is currently shown so late responses for a previous profile are ignored
+  const activeUserIdRef = useRef(user.id);
+  const backersRequestRef = useRef(0);
+  const backingRequestRef = useRef(0);
+
+  // Clear lists when switching to a different profile
+  useEffect(() => {
+    activeUserIdRef.current = user.id;
+    backersRequestRef.current++;
+    backingRequestRef.current++;
+    setBackersList([]);
+    setBackingList([]);
+    setLoadingBackers(false);
+    setLoadingBacking(false);
+  }, [user.id]);
   
   // Always get the latest post data from the posts array
   const selectedPost = selectedPostId ? posts.find(p => p.id === selectedPostId) || null : null;
@@ -80,11 +97,14 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
 
   // Fetch backers list
   const fetchBackers = async () => {
+    const requestedUserId = user.id;
+    const requestId = ++backersRequestRef.current;
+    const isStale = () => requestId !== backersRequestRef.current || requestedUserId !== activeUserIdRef.current;
     setLoadingBackers(true);
     try {
-      console.log('Fetching backers for user:', user.id);
+      console.log('Fetching backers for user:', requestedUserId);
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/users/${user.id}/backers-list`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/users/${requestedUserId}/backers-list`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
@@ -92,6 +112,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
         }
       );
       const data = await response.json();
+      if (isStale()) return;
       console.log('Backers response:', data);
       if (data.backers) {
         setBackersList(data.backers);
@@ -102,17 +123,20 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
     } catch (error) {
       console.error('Error fetching backers:', error);
     } finally {
-      setLoadingBackers(false);
+      if (!isStale()) setLoadingBackers(false);
     }
   };
 
   // Fetch backing list
   const fetchBacking = async () => {
+    const requestedUserId = user.id;
+    const requestId = ++backingRequestRef.current;
+    const isStale = () => requestId !== backingRequestRef.current || requestedUserId !== activeUserIdRef.current;
     setLoadingBacking(true);
     try {
-      console.log('Fetching backing list for user:', user.id);
+      console.log('Fetching backing list for user:', requestedUserId);
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/users/${user.id}/backing-list`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/users/${requestedUserId}/backing-list`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
@@ -120,6 +144,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
         }
       );
       const data = await response.json();
+      if (isStale()) return;
       console.log('Backing response:', data);
       if (data.backing) {
         setBackingList(data.backing);
@@ -130,7 +155,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
     } catch (error) {
       console.error('Error fetching backing:', error);
     } finally {
-      setLoadingBacking(false);
+      if (!isStale()) setLoadingBacking(false);
     }
   };
 
@@ -143,7 +168,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
         fetchBacking();
       }
     }
-  }, [showBackingDialog, backingDialogTab]);
+  }, [showBackingDialog, backingDialogTab, user.id]);
 
   const handleOpenBackingDialog = (tab: 'backers' | 'backing') => {
     setBackingDialogTab(tab);
@@ -307,7 +332,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                 )}
               </div>
               {isOwnProfile && onUpdateProfile && (
-                <EditProfileDialog user={user} onUpdateProfile={onUpdateProfile} />
+                <EditProfileDialog user={user} onUpdateProfile={onUpdateProfile} accessToken={accessToken ?? undefined} />
               )}
             </div>
             <p className="text-body mb-4">{user.bio || "No bio yet"}</p>

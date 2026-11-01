@@ -8,6 +8,7 @@ import { ScrollArea } from "./ui/scroll-area";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -234,7 +235,22 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isSendingRef = useRef(false);
+  // Tracks the currently open conversation so late poll responses for another one are ignored
+  const selectedConversationUserIdRef = useRef<string | null>(null);
+
+  // Keep the ref in sync and clear the unread badge locally when a conversation is opened
+  useEffect(() => {
+    const openUserId = selectedConversation?.userId ?? null;
+    selectedConversationUserIdRef.current = openUserId;
+    if (!selectedConversation) return;
+    const openId = selectedConversation.id;
+    setConversations(prev => prev.map(conv =>
+      (conv.id === openId || conv.userId === openUserId) && conv.unread > 0 ? { ...conv, unread: 0 } : conv
+    ));
+  }, [selectedConversation?.id, selectedConversation?.userId]);
 
   // Load conversations from server
   const loadConversations = async () => {
@@ -256,13 +272,15 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
       
       if (response.ok) {
         const serverConversations = await response.json();
-        console.log("Loaded conversations:", serverConversations);
         
         // Only use server conversations for logged-in users (no mock data)
         if (Array.isArray(serverConversations)) {
           // Update each conversation's messages with isLiked status
+          const openUserId = selectedConversationUserIdRef.current;
           const conversationsWithLikes = serverConversations.map((conv: any) => ({
             ...conv,
+            // The open conversation is being read, so don't show it as unread
+            unread: openUserId && (conv.id?.split(":")[2] || conv.userId) === openUserId ? 0 : conv.unread,
             messages: conv.messages?.map((msg: any) => ({
               ...msg,
               isLiked: msg.likedBy?.includes(currentUserId) || false,
@@ -274,15 +292,14 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
           setConversations([]);
         }
       } else if (response.status === 401) {
-        console.log("Session expired, showing empty conversations");
-        setConversations([]);
+        // Session expired: keep the previously loaded conversations
+        console.log("Session expired, keeping existing conversations");
       } else {
-        console.warn("Failed to load conversations from server, showing empty");
-        setConversations([]);
+        console.warn("Failed to load conversations from server, keeping existing conversations");
       }
     } catch (error) {
-      console.log("Server unavailable, showing empty conversations");
-      setConversations([]);
+      // Server unavailable: keep the previously loaded conversations
+      console.log("Server unavailable, keeping existing conversations");
     } finally {
       setConversationsLoaded(true);
     }
@@ -410,26 +427,34 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
     // Only auto-refresh if user is authenticated and a conversation is selected
     if (!selectedConversation || !accessToken) return;
 
+    const pollUserId = selectedConversation.userId;
+
     const refreshMessages = async () => {
-      const updatedConversation = await loadConversationMessages(selectedConversation.userId);
+      const updatedConversation = await loadConversationMessages(pollUserId);
+      // Ignore responses that land after the user switched or deleted the conversation
+      if (selectedConversationUserIdRef.current !== pollUserId) return;
       if (updatedConversation && updatedConversation.messages) {
-        // Update the selected conversation with new messages
-        const updated = {
-          ...selectedConversation,
+        const applyUpdate = (conv: Conversation): Conversation => ({
+          ...conv,
           messages: updatedConversation.messages,
-          lastMessage: updatedConversation.lastMessage || selectedConversation.lastMessage,
-          lastMessageTime: updatedConversation.lastMessageTime || selectedConversation.lastMessageTime,
-        };
-        setSelectedConversation(updated);
-        
+          lastMessage: updatedConversation.lastMessage || conv.lastMessage,
+          lastMessageTime: updatedConversation.lastMessageTime || conv.lastMessageTime,
+          unread: 0,
+        });
+        // Update the selected conversation with new messages
+        setSelectedConversation(prev => (prev && prev.userId === pollUserId ? applyUpdate(prev) : prev));
+
         // Also update in the conversations list
-        setConversations(prevConversations => 
-          prevConversations.map(conv => 
-            conv.userId === selectedConversation.userId ? updated : conv
+        setConversations(prevConversations =>
+          prevConversations.map(conv =>
+            (conv.id?.split(":")[2] || conv.userId) === pollUserId ? applyUpdate(conv) : conv
           )
         );
       }
     };
+
+    // Fetch immediately on open (this also clears the server-side unread count)
+    refreshMessages();
 
     const interval = setInterval(() => {
       refreshMessages();
@@ -459,149 +484,208 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
     }
   };
 
+  // Apply an update to a conversation in both the list and (if still open) the selected conversation
+  const updateConversationById = (convId: string, update: (conv: Conversation) => Conversation) => {
+    setConversations(prev => prev.map(conv => (conv.id === convId ? update(conv) : conv)));
+    setSelectedConversation(prev => (prev && prev.id === convId ? update(prev) : prev));
+  };
+
   const handleSendMessage = async () => {
+    if (isSendingRef.current) return;
     if ((!messageText.trim() && !selectedMedia) || !selectedConversation) return;
 
+    const conv = selectedConversation;
+    const text = messageText;
+    const media = selectedMedia;
+    const preview = mediaPreview;
+    const previousLastMessage = conv.lastMessage;
+    const previousLastMessageTime = conv.lastMessageTime;
+
     const now = Date.now();
+    const tempId = `temp-${now}`;
     const newMessage: Message = {
-      id: now.toString(),
+      id: tempId,
       senderId: currentUserId,
-      text: messageText,
+      text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       sentAt: now,
       likes: 0,
       isLiked: false,
-      ...(selectedMedia && {
-        mediaUrl: mediaPreview || '',
-        mediaType: selectedMedia.type.startsWith('video/') ? 'video' : 'image',
+      ...(media && {
+        mediaUrl: preview || '',
+        mediaType: media.type.startsWith('video/') ? 'video' : 'image',
       }),
     };
 
-    const lastMessageText = messageText || (selectedMedia?.type.startsWith('video/') ? '📹 Video' : '📷 Photo');
+    const lastMessageText = text || (media?.type.startsWith('video/') ? '📹 Video' : '📷 Photo');
 
-    // Save to server if we have an access token
-    if (accessToken) {
-      try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/conversations/${selectedConversation.userId}/messages`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(newMessage),
-          }
-        );
-
-        if (response.ok) {
-          console.log("Message sent successfully to server");
-          // Immediately refresh conversations to get the latest state
-          await loadConversations();
-        } else if (response.status === 401) {
-          // Session expired
-          console.log("Session expired, message saved locally only");
-        }
-      } catch (error) {
-        // Network error - message saved locally
-        console.log("Server unavailable, message saved locally only");
-      }
-    }
-
-    // Update local state immediately for instant feedback
-    setConversations(
-      conversations.map((conv) => {
-        if (conv.id === selectedConversation.id) {
-          return {
-            ...conv,
-            messages: [...conv.messages, newMessage],
-            lastMessage: lastMessageText,
-            lastMessageTime: "Just now",
-          };
-        }
-        return conv;
-      })
-    );
-
-    setSelectedConversation({
-      ...selectedConversation,
-      messages: [...selectedConversation.messages, newMessage],
-      lastMessage: lastMessageText,
-      lastMessageTime: "Just now",
-    });
-
+    // Clear the input and show the message immediately
     setMessageText("");
     handleRemoveMedia();
+    updateConversationById(conv.id, (c) => ({
+      ...c,
+      messages: [...c.messages, newMessage],
+      lastMessage: lastMessageText,
+      lastMessageTime: "Just now",
+    }));
+
+    if (!accessToken) return;
+
+    const rollback = () => {
+      updateConversationById(conv.id, (c) => ({
+        ...c,
+        messages: c.messages.filter((msg) => msg.id !== tempId),
+        lastMessage: previousLastMessage,
+        lastMessageTime: previousLastMessageTime,
+      }));
+      // Restore what the user typed, unless they've already started a new message
+      setMessageText((current) => (current ? current : text));
+      if (media) {
+        setSelectedMedia(media);
+        setMediaPreview(preview);
+      }
+    };
+
+    isSendingRef.current = true;
+    setIsSending(true);
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/conversations/${conv.userId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(newMessage),
+        }
+      );
+
+      if (response.ok) {
+        const serverMessage = await response.json().catch(() => null);
+        // Replace the temporary message with the server's copy so unsend/like use the real id
+        if (serverMessage?.id) {
+          updateConversationById(conv.id, (c) => ({
+            ...c,
+            messages: c.messages.map((msg) =>
+              msg.id === tempId
+                ? {
+                    ...msg,
+                    ...serverMessage,
+                    isLiked: serverMessage.likedBy?.includes(currentUserId) || false,
+                    likes: serverMessage.likes || 0,
+                  }
+                : msg
+            ),
+          }));
+        }
+        // Refresh conversations to get the latest state
+        loadConversations();
+      } else {
+        rollback();
+        toast.error(response.status === 401 ? "Session expired. Please sign in again." : "Failed to send message");
+      }
+    } catch (error) {
+      rollback();
+      toast.error("Failed to send message. Check your connection.");
+    } finally {
+      isSendingRef.current = false;
+      setIsSending(false);
+    }
   };
 
   const handleUnsendMessage = async (messageId: string) => {
     if (!selectedConversation) return;
+    // Message is still being sent; it has no server id yet
+    if (messageId.startsWith('temp-')) return;
 
-    // Delete from server if we have an access token
-    if (accessToken) {
-      try {
-        await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/conversations/${selectedConversation.userId}/messages/${messageId}`,
-          {
-            method: 'DELETE',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
-      } catch (error) {
-        console.error("Error deleting message from server:", error);
-      }
-    }
+    const conv = selectedConversation;
+    const removed = conv.messages.find((msg) => msg.id === messageId);
+    if (!removed) return;
+    const previousLastMessage = conv.lastMessage;
+    const previousLastMessageTime = conv.lastMessageTime;
 
-    const updatedMessages = selectedConversation.messages.filter((msg) => msg.id !== messageId);
-    const lastMsg = updatedMessages[updatedMessages.length - 1];
-    const newLastMessage = lastMsg?.text || (lastMsg?.mediaType === 'video' ? '📹 Video' : lastMsg?.mediaUrl ? '📷 Photo' : 'No messages');
+    // Optimistically remove the message
+    updateConversationById(conv.id, (c) => {
+      const updatedMessages = c.messages.filter((msg) => msg.id !== messageId);
+      const lastMsg = updatedMessages[updatedMessages.length - 1];
+      return {
+        ...c,
+        messages: updatedMessages,
+        lastMessage: lastMsg?.text || (lastMsg?.mediaType === 'video' ? '📹 Video' : lastMsg?.mediaUrl ? '📷 Photo' : 'No messages'),
+        lastMessageTime: lastMsg?.timestamp || '',
+      };
+    });
 
-    const updatedConversation = {
-      ...selectedConversation,
-      messages: updatedMessages,
-      lastMessage: newLastMessage,
-      lastMessageTime: lastMsg?.timestamp || '',
+    if (!accessToken) return;
+
+    const rollback = (message: string) => {
+      updateConversationById(conv.id, (c) => ({
+        ...c,
+        messages: c.messages.some((msg) => msg.id === messageId)
+          ? c.messages
+          : [...c.messages, removed].sort((a, b) => (a.sentAt || 0) - (b.sentAt || 0)),
+        lastMessage: previousLastMessage,
+        lastMessageTime: previousLastMessageTime,
+      }));
+      toast.error(message);
     };
 
-    setSelectedConversation(updatedConversation);
-
-    setConversations(
-      conversations.map((conv) =>
-        conv.id === selectedConversation.id ? updatedConversation : conv
-      )
-    );
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/conversations/${conv.userId}/messages/${messageId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      if (!response.ok) {
+        rollback(response.status === 403 ? "You can only unsend your own messages" : "Failed to unsend message");
+      }
+    } catch (error) {
+      console.error("Error deleting message from server:", error);
+      rollback("Failed to unsend message. Check your connection.");
+    }
   };
 
   const handleDeleteConversation = async () => {
     if (!selectedConversation) return;
 
-    // Delete from server if we have an access token
-    if (accessToken) {
-      try {
-        await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/conversations/${selectedConversation.userId}`,
-          {
-            method: 'DELETE',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
-      } catch (error) {
-        console.error("Error deleting conversation from server:", error);
-      }
-    }
+    const conv = selectedConversation;
+    const previousConversations = conversations;
 
-    // Remove the conversation from the list
-    setConversations(conversations.filter((conv) => conv.id !== selectedConversation.id));
-    
-    // Close the conversation view
+    // Optimistically remove the conversation and close it
+    selectedConversationUserIdRef.current = null;
+    setConversations(prev => prev.filter((c) => c.id !== conv.id));
     setSelectedConversation(null);
-    
-    // Close the dialog
     setShowDeleteDialog(false);
+
+    if (!accessToken) return;
+
+    const rollback = (message: string) => {
+      setConversations(prev => (prev.some((c) => c.id === conv.id) ? prev : previousConversations));
+      toast.error(message);
+    };
+
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/conversations/${conv.userId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      if (!response.ok) {
+        rollback("Failed to delete conversation");
+      }
+    } catch (error) {
+      console.error("Error deleting conversation from server:", error);
+      rollback("Failed to delete conversation. Check your connection.");
+    }
   };
 
   const handleLikeMessage = async (messageId: string) => {
@@ -956,12 +1040,12 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                       placeholder="Type a message..."
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                      onKeyDown={(e) => e.key === "Enter" && !isSending && handleSendMessage()}
                       className="flex-1 bg-raised border-rule text-white placeholder:text-muted-text"
                     />
                     <Button
                       onClick={handleSendMessage}
-                      disabled={!messageText.trim() && !selectedMedia}
+                      disabled={isSending || (!messageText.trim() && !selectedMedia)}
                       className="bg-white text-black hover:bg-[#e6e3df]"
                     >
                       <Send className="h-4 w-4" />
