@@ -175,7 +175,6 @@ export function EditProfileDialog({ user, onUpdateProfile, accessToken }: EditPr
     }
   };
 
-  const filledLinks = websiteLinks.filter(link => link.trim() !== "");
   const fieldClass =
     "h-11 rounded-xl border-transparent bg-raised px-3.5 text-[15px] text-white placeholder:text-faint focus-visible:border-[#6a6460]";
 
@@ -191,54 +190,39 @@ export function EditProfileDialog({ user, onUpdateProfile, accessToken }: EditPr
         <DialogHeader className="px-6 pt-6 pb-4 text-left">
           <DialogTitle className="text-xl font-semibold">Edit profile</DialogTitle>
           <DialogDescription className="text-muted-text">
-            This is how people see you across Streakz.
+            Click your photo to change it.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 pb-6">
-          {/* Live preview of the profile card, with the photo control on the photo itself */}
-          <section className="rounded-[18px] bg-raised p-4" aria-label="Profile preview">
-            <div className="flex items-center gap-4">
-              <label className="group relative h-[72px] w-[72px] shrink-0 cursor-pointer overflow-hidden rounded-full">
-                <img src={avatar} alt="" className="h-full w-full object-cover" />
-                <span className="absolute inset-0 grid place-items-center bg-black/55 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                  {isUploading ? <Loader2 className="h-5 w-5 animate-spin text-white" /> : <Camera className="h-5 w-5 text-white" />}
+          {/* The photo is the upload button */}
+          <div className="flex justify-center pt-1">
+            <label
+              className="group relative h-24 w-24 cursor-pointer rounded-full [&:has(:focus-visible)]:ring-2 [&:has(:focus-visible)]:ring-white [&:has(:focus-visible)]:ring-offset-4 [&:has(:focus-visible)]:ring-offset-surface"
+              title="Change photo (images up to 5 MB)"
+            >
+              <img src={avatar} alt="" className="h-full w-full rounded-full object-cover" />
+              <span className="absolute inset-0 grid place-items-center rounded-full bg-black/55 opacity-0 transition-opacity group-hover:opacity-100">
+                <Camera className="h-6 w-6 text-white" />
+              </span>
+              {isUploading && (
+                <span className="absolute inset-0 grid place-items-center rounded-full bg-black/55">
+                  <Loader2 className="h-6 w-6 animate-spin text-white" />
                 </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  disabled={isUploading}
-                  className="sr-only"
-                  aria-label="Change profile photo"
-                />
-              </label>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-base font-semibold text-white">{name.trim() || "Your name"}</p>
-                <p className="line-clamp-2 text-sm text-body">{bio.trim() || "No bio yet"}</p>
-                {filledLinks[0] && (
-                  <p className="mt-1 flex items-center gap-1.5 truncate text-[13px] text-muted-text">
-                    <LinkIcon className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{filledLinks[0].replace(/^https?:\/\//, "")}</span>
-                    {filledLinks.length > 1 && <span className="shrink-0 text-faint">+{filledLinks.length - 1}</span>}
-                  </p>
-                )}
-              </div>
-            </div>
-            <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-[#6a6460] px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#363330] focus-within:ring-2 focus-within:ring-white">
-              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-              {isUploading ? "Uploading..." : "Change photo"}
+              )}
+              <span className="absolute bottom-0 right-0 grid h-8 w-8 place-items-center rounded-full border-[3px] border-surface bg-white text-black">
+                <Camera className="h-3.5 w-3.5" />
+              </span>
               <input
                 type="file"
                 accept="image/*"
                 onChange={handleFileUpload}
                 disabled={isUploading}
                 className="sr-only"
-                aria-describedby="photo-limit"
+                aria-label="Change profile photo (images up to 5 MB)"
               />
             </label>
-            <span id="photo-limit" className="ml-3 text-xs text-faint">Images up to 5 MB</span>
-          </section>
+          </div>
 
           {/* Name */}
           <div className="space-y-2">
