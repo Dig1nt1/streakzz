@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,19 +27,37 @@ export function JoinPrivateRoomDialog({
 }: JoinPrivateRoomDialogProps) {
   const [password, setPassword] = useState("");
   const [isJoining, setIsJoining] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Input doesn't forward refs (React 18), so focus it through its wrapper
+  const fieldRef = useRef<HTMLDivElement>(null);
+
+  // Clear the typed password and any error whenever the dialog closes
+  useEffect(() => {
+    if (!open) {
+      setPassword("");
+      setError(null);
+    }
+  }, [open]);
 
   const handleJoin = async () => {
-    if (!password.trim()) {
+    if (!password.trim() || isJoining) {
       return;
     }
 
     setIsJoining(true);
+    setError(null);
     try {
       await onJoin(password.trim());
       setPassword("");
       onOpenChange(false);
-    } catch (error) {
-      console.error("Error joining room:", error);
+    } catch (err: any) {
+      // Keep the dialog open so the user can retry
+      setError(err?.message === "Invalid password" ? "Wrong password" : err?.message || "Failed to join room");
+      setTimeout(() => {
+        const input = fieldRef.current?.querySelector("input");
+        input?.focus();
+        input?.select();
+      }, 0);
     } finally {
       setIsJoining(false);
     }
@@ -59,13 +77,16 @@ export function JoinPrivateRoomDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
+          <div ref={fieldRef} className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError(null);
+              }}
               placeholder="Enter room password"
               className="bg-surface border-rule text-white"
               onKeyDown={(e) => {
@@ -74,7 +95,13 @@ export function JoinPrivateRoomDialog({
                 }
               }}
               autoFocus
+              aria-invalid={!!error}
             />
+            {error && (
+              <p className="text-sm text-red-400" role="alert">
+                {error}
+              </p>
+            )}
           </div>
         </div>
 

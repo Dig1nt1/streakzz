@@ -175,58 +175,43 @@ export function AuthView({ onAuthSuccess }: AuthViewProps) {
     }
 
     try {
-      // Try server-side signup first (handles alias uniqueness + profile storage)
-      let serverOk = false;
-      try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/signup`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${publicAnonKey}`,
-            },
-            body: JSON.stringify({
-              email: signupEmail,
-              password: signupPassword,
-              name: signupAlias,
-              alias: signupAlias,
-            }),
-          }
-        );
-
-        const data = await safeJson(response);
-
-        if (response.ok && data?.userId && data?.accessToken) {
-          onAuthSuccess(data.accessToken, data.userId, signupAlias, true);
-          serverOk = true;
-        } else if (response.ok) {
-          throw new Error("Signup succeeded but failed to create session");
-        } else if (data?.error) {
-          // Real server error (e.g. alias taken) — don't fall back
-          throw new Error(data.error);
+      // Server-side signup handles alias uniqueness + profile storage
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/signup`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${publicAnonKey}`,
+          },
+          body: JSON.stringify({
+            email: signupEmail,
+            password: signupPassword,
+            name: signupAlias,
+            alias: signupAlias,
+          }),
         }
-        // Non-JSON / 5xx → fall through to direct auth below
-      } catch (serverErr: any) {
-        if (serverErr.message && !serverErr.message.includes("server may not be deployed")) {
-          throw serverErr; // Propagate real errors (alias taken, validation, etc.)
-        }
+      );
+
+      const data = await safeJson(response);
+
+      if (!response.ok || !data?.userId) {
+        // Real server error (e.g. alias taken) or the server is unavailable
+        throw new Error(data?.error || "We couldn't create your account right now. Please try again in a moment.");
       }
 
-      if (!serverOk) {
-        // Fall back to direct Supabase auth when edge function is unavailable
-        const supabase = getSupabaseClient();
-        const { data, error } = await supabase.auth.signUp({
-          email: signupEmail,
-          password: signupPassword,
-          options: { data: { name: signupAlias, alias: signupAlias } },
-        });
+      // Sign in on the browser client so the session is stored and survives a reload
+      const supabase = getSupabaseClient();
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: signupEmail,
+        password: signupPassword,
+      });
 
-        if (error) throw new Error(error.message);
-        if (!data.session) throw new Error("Check your email to confirm your account, then log in.");
-
-        onAuthSuccess(data.session.access_token, data.user!.id, signupAlias, true);
+      if (signInError || !signInData?.session?.access_token || !signInData?.user?.id) {
+        throw new Error("Your account was created, but we couldn't sign you in. Please log in.");
       }
+
+      onAuthSuccess(signInData.session.access_token, signInData.user.id, signupAlias, true);
     } catch (err: any) {
       setError(err.message || "Failed to create account. Please try again.");
     } finally {

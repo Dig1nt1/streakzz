@@ -60,7 +60,12 @@ export function SyncView({
   }>>([]);
   const [chatInput, setChatInput] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const lastChatMessageIdRef = useRef<string | null>(null);
+  // Current joined room and when it was joined, so a room list fetched after joining
+  // can detect that the room no longer exists
+  const joinedRoomRef = useRef<string | null>(null);
+  const joinedAtRef = useRef(0);
 
   // Default sync rooms
   const defaultRooms: SyncRoom[] = [
@@ -122,6 +127,7 @@ export function SyncView({
       return;
     }
 
+    const fetchStartedAt = Date.now();
     try {
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/sync/rooms`,
@@ -135,12 +141,26 @@ export function SyncView({
       if (response.ok) {
         const rooms = await response.json();
         setSyncRooms(rooms);
+
+        // If the joined room is gone (e.g. deleted), stop treating it as joined
+        const currentJoined = joinedRoomRef.current;
+        if (
+          currentJoined &&
+          Array.isArray(rooms) &&
+          fetchStartedAt >= joinedAtRef.current &&
+          !rooms.some((r: SyncRoom) => r.id === currentJoined)
+        ) {
+          joinedRoomRef.current = null;
+          setJoinedRoom(null);
+          toast.info("This room is no longer available");
+        }
       } else {
-        setSyncRooms(defaultRooms);
+        // Keep the previous list (if any) so a transient failure doesn't drop the joined room
+        setSyncRooms(prev => (prev.length > 0 ? prev : defaultRooms));
       }
     } catch (error) {
       console.error("Error loading sync rooms:", error);
-      setSyncRooms(defaultRooms);
+      setSyncRooms(prev => (prev.length > 0 ? prev : defaultRooms));
     } finally {
       setIsLoading(false);
     }
@@ -156,17 +176,18 @@ export function SyncView({
   }) => {
     if (!accessToken) {
       toast.error("Please sign in to create a room");
-      return;
+      throw new Error("Not signed in");
     }
 
+    let created = false;
+    let errorToasted = false;
     try {
       const payload = {
         ...roomData,
         createdBy: currentUserId,
         creatorName: currentUserName,
       };
-      console.log('Creating room with payload:', { ...payload, password: payload.password ? '***' : undefined });
-      
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/sync/rooms/create`,
         {
@@ -181,14 +202,19 @@ export function SyncView({
 
       if (response.ok) {
         const data = await response.json();
+        created = true;
         toast.success(`Room "${roomData.name}" created successfully!`);
         await loadSyncRooms();
-        
-        // Auto-join the newly created room (pass password if it's private)
+
+        // Auto-join the newly created room (pass password if it's private).
+        // A join failure is already toasted by handleJoinRoom; the room itself was created.
         if (data.roomId) {
           const joinPassword = roomData.isPrivate ? roomData.password : undefined;
-          console.log('Auto-joining created room:', { roomId: data.roomId, hasPassword: !!joinPassword });
-          await handleJoinRoom(data.roomId, joinPassword);
+          try {
+            await handleJoinRoom(data.roomId, joinPassword);
+          } catch {
+            // Room exists; user can join it from the list
+          }
         }
       } else {
         let errorMessage = "Failed to create room";
@@ -200,10 +226,17 @@ export function SyncView({
           errorMessage = response.statusText || errorMessage;
         }
         toast.error(errorMessage);
+        errorToasted = true;
+        // Throw so the create dialog stays open with the user's input
+        throw new Error(errorMessage);
       }
-    } catch (error) {
-      console.error("Error creating room:", error);
-      toast.error("Failed to create room. Please try again.");
+    } catch (error: any) {
+      if (created) return;
+      if (!errorToasted) {
+        console.error("Error creating room:", error);
+        toast.error("Failed to create room. Please try again.");
+      }
+      throw error;
     }
   };
 
@@ -225,8 +258,7 @@ export function SyncView({
         userAvatar: currentUserAvatar,
         password,
       };
-      console.log('Joining room:', { roomId, hasPassword: !!password, passwordLength: password?.length });
-      
+
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/sync/rooms/${roomId}/join`,
         {
@@ -240,6 +272,8 @@ export function SyncView({
       );
 
       if (response.ok) {
+        joinedRoomRef.current = roomId;
+        joinedAtRef.current = Date.now();
         setJoinedRoom(roomId);
         // Refresh rooms to show updated user list
         await loadSyncRooms();
@@ -253,7 +287,7 @@ export function SyncView({
         try {
           const error = await response.json();
           if (error.error === "Invalid password") {
-            toast.error("Incorrect password");
+            // Shown inline by the password dialog
             throw new Error("Invalid password");
           }
           errorMessage = error.error || errorMessage;
@@ -266,7 +300,7 @@ export function SyncView({
         throw new Error(errorMessage);
       }
     } catch (error: any) {
-      if (!error?.message?.includes("Failed to join")) {
+      if (!error?.message?.includes("Failed to join") && error?.message !== "Invalid password") {
         // Only log unexpected errors; join failures already show toasts
         console.error("Error joining room:", error);
       }
@@ -288,15 +322,12 @@ export function SyncView({
 
   // Handle join private room with password
   const handleJoinPrivateRoom = async (password: string) => {
-    if (!selectedPrivateRoom) return;
+    if (!selectedPrivateRoom) throw new Error("No room selected");
 
-    try {
-      await handleJoinRoom(selectedPrivateRoom.id, password);
-      setShowPasswordDialog(false);
-      setSelectedPrivateRoom(null);
-    } catch (error) {
-      // Error already handled in handleJoinRoom - keep dialog open for retry
-    }
+    // Errors propagate so JoinPrivateRoomDialog stays open and shows them
+    await handleJoinRoom(selectedPrivateRoom.id, password);
+    setShowPasswordDialog(false);
+    setSelectedPrivateRoom(null);
   };
 
   // Delete a custom sync room
@@ -318,7 +349,10 @@ export function SyncView({
 
       if (response.ok) {
         toast.success("Room deleted successfully");
-        setJoinedRoom(null);
+        if (joinedRoomRef.current === roomId) {
+          joinedRoomRef.current = null;
+          setJoinedRoom(null);
+        }
         await loadSyncRooms();
       } else {
         const error = await response.json();
@@ -350,6 +384,7 @@ export function SyncView({
       );
 
       if (response.ok) {
+        joinedRoomRef.current = null;
         setJoinedRoom(null);
         await loadSyncRooms();
         toast.info("Left the sync room");
@@ -444,9 +479,15 @@ export function SyncView({
     return () => clearInterval(interval);
   }, [joinedRoom, accessToken]);
 
-  // Auto-scroll chat to bottom on new messages
+  // Auto-scroll chat to bottom only when a new message arrives (scroll the chat box, not the page)
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const lastId = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].id : null;
+    if (lastId === lastChatMessageIdRef.current) return;
+    lastChatMessageIdRef.current = lastId;
+    const container = chatContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
   }, [chatMessages]);
 
   // Send heartbeat every 10 seconds when in a room
@@ -649,7 +690,7 @@ export function SyncView({
               <span className="h-2 w-2 rounded-full bg-white inline-block" />
               Room Chat
             </h4>
-            <div className="h-52 overflow-y-auto space-y-2 mb-3 pr-1 scrollbar-thin">
+            <div ref={chatContainerRef} className="h-52 overflow-y-auto space-y-2 mb-3 pr-1 scrollbar-thin">
               {chatMessages.length === 0 ? (
                 <p className="text-faint text-xs text-center mt-16">No messages yet. Say something!</p>
               ) : (
@@ -694,7 +735,6 @@ export function SyncView({
                   );
                 })
               )}
-              <div ref={chatEndRef} />
             </div>
             <div className="flex gap-2">
               <Input

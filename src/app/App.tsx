@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Home, Trophy, User, Send, Swords, Radio, Plus, Menu } from "lucide-react";
 import { FeedView } from "./components/FeedView";
 import { LeaderboardView } from "./components/LeaderboardView";
@@ -19,211 +19,6 @@ import streakzLogo from "figma:asset/0b5993ed4ace0b1938a06682c91bcf77a5cd9292.pn
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
 import { getNewlyUnlockedAchievements, getUnlockedAchievementIds } from "./utils/achievements";
-
-// Mock data
-const mockUsers = [
-  {
-    id: "1",
-    name: "Sarah Chen",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
-    bio: "Fitness enthusiast | 5am club member | Marathon runner",
-    joined: "January 2024",
-    totalStreaks: 156,
-    longestStreak: 89,
-    activeStreaks: 3,
-    websiteLinks: ["instagram.com/sarahfitness", "strava.com/athletes/sarahchen", "sarahfitness.com"],
-  },
-  {
-    id: "2",
-    name: "Marcus Rodriguez",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-    bio: "Pro gamer | Poker champion | Living the streak life",
-    joined: "March 2024",
-    totalStreaks: 142,
-    longestStreak: 67,
-    activeStreaks: 5,
-    websiteLinks: ["twitch.tv/marcusrodriguez", "twitter.com/marcusgames", "youtube.com/@marcuspoker"],
-  },
-  {
-    id: "3",
-    name: "Emily Watson",
-    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
-    bio: "Yoga instructor | Meditation guide | Mindfulness advocate",
-    joined: "February 2024",
-    totalStreaks: 134,
-    longestStreak: 120,
-    activeStreaks: 2,
-    websiteLinks: ["emilyyoga.com", "instagram.com/emilyyoga"],
-  },
-  {
-    id: "4",
-    name: "Alex Kim",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop",
-    bio: "Music producer | Guitar enthusiast | Daily practice warrior",
-    joined: "December 2023",
-    totalStreaks: 128,
-    longestStreak: 45,
-    activeStreaks: 4,
-    websiteLinks: ["soundcloud.com/alexkimmusic", "spotify.com/artist/alexkim", "instagram.com/alexkimmusic", "alexkimmusic.com"],
-  },
-  {
-    id: "5",
-    name: "Jordan Taylor",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
-    bio: "E-sports athlete | Consistency is key | Never miss a day",
-    joined: "April 2024",
-    totalStreaks: 98,
-    longestStreak: 56,
-    activeStreaks: 3,
-    websiteLinks: ["youtube.com/@jordantaylorgaming", "twitch.tv/jordangaming"],
-  },
-];
-
-const mockPosts: Post[] = [
-  {
-    id: "1",
-    userId: "1",
-    userName: "Sarah Chen",
-    userAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
-    category: "Fitness",
-    streakCount: 3,
-    title: "5AM Workout Journey 💪",
-    description: "Never thought I'd become a morning person, but here we are! Consistency is everything.",
-    imageUrl: "https://images.unsplash.com/photo-1756115484694-009466dbaa67?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaXRuZXNzJTIwd29ya291dCUyMGd5bXxlbnwxfHx8fDE3NjE1Njc0MjN8MA&ixlib=rb-4.1.0&q=80&w=1080",
-    likes: 234,
-    comments: [
-      {
-        id: "c1",
-        userId: "2",
-        userName: "Marcus Rodriguez",
-        userAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-        text: "Incredible dedication! Keep it up! 🔥",
-        timestamp: "2h ago",
-        likes: 5,
-        isLiked: false,
-      },
-    ],
-    timestamp: "3 hours ago",
-    isParentStreak: true,
-    streakDays: [
-      {
-        dayNumber: 1,
-        imageUrl: "https://images.unsplash.com/photo-1756115484694-009466dbaa67?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaXRuZXNzJTIwd29ya291dCUyMGd5bXxlbnwxfHx8fDE3NjE1Njc0MjN8MA&ixlib=rb-4.1.0&q=80&w=1080",
-        description: "Day 1! Started with a 30-minute cardio session. Woke up at 5AM sharp!",
-        postedAt: "2024-01-01T05:30:00Z",
-        likes: 89,
-        isLiked: false,
-      },
-      {
-        dayNumber: 2,
-        imageUrl: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaXRuZXNzJTIwd2VpZ2h0cyUyMGd5bXxlbnwxfHx8fDE3NjE1Njc0MjN8MA&ixlib=rb-4.1.0&q=80&w=1080",
-        description: "Day 2! Added some weight training. Feeling stronger already!",
-        postedAt: "2024-01-02T05:30:00Z",
-        likes: 102,
-        isLiked: false,
-      },
-      {
-        dayNumber: 3,
-        imageUrl: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaXRuZXNzJTIwY2xhc3MlMjBncm91cHxlbnwxfHx8fDE3NjE1Njc0MjN8MA&ixlib=rb-4.1.0&q=80&w=1080",
-        description: "Day 3! Joined the early morning class. The energy is incredible!",
-        postedAt: "2024-01-03T05:30:00Z",
-        likes: 143,
-        isLiked: false,
-      },
-    ],
-  },
-  {
-    id: "2",
-    userId: "2",
-    userName: "Marcus Rodriguez",
-    userAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-    category: "Gaming",
-    streakCount: 67,
-    title: "67-Day Win Streak in Apex Legends!",
-    description: "Finally hit my goal! Rank progression has been insane. Who wants to squad up?",
-    imageUrl: "https://images.unsplash.com/photo-1580234811497-9df7fd2f357e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnYW1pbmclMjBjb250cm9sbGVyJTIwZXNwb3J0c3xlbnwxfHx8fDE3NjE0ODIwODJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
-    likes: 189,
-    comments: [],
-    timestamp: "5 hours ago",
-  },
-  {
-    id: "3",
-    userId: "3",
-    userName: "Emily Watson",
-    userAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
-    category: "Goals",
-    streakCount: 120,
-    title: "120 Days of Morning Meditation 🧘‍♀️",
-    description: "Four months of consistent mindfulness practice. My mental clarity has never been better!",
-    imageUrl: "https://images.unsplash.com/photo-1592895792095-85fa785192a9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtZWRpdGF0aW9uJTIweW9nYSUyMG1pbmRmdWxuZXNzfGVufDF8fHx8MTc2MTU3MzkwOXww&ixlib=rb-4.1.0&q=80&w=1080",
-    likes: 312,
-    comments: [
-      {
-        id: "c2",
-        userId: "1",
-        userName: "Sarah Chen",
-        userAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
-        text: "This is so inspiring! How did you stay consistent?",
-        timestamp: "1h ago",
-        likes: 3,
-        isLiked: false,
-      },
-      {
-        id: "c3",
-        userId: "3",
-        userName: "Emily Watson",
-        userAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
-        text: "Same time every morning! Making it non-negotiable was key.",
-        timestamp: "45m ago",
-        likes: 7,
-        isLiked: false,
-      },
-    ],
-    timestamp: "7 hours ago",
-  },
-  {
-    id: "4",
-    userId: "4",
-    userName: "Alex Kim",
-    userAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop",
-    category: "Hobbies",
-    streakCount: 45,
-    title: "45 Days of Daily Guitar Practice! 🎸",
-    description: "From struggling with basic chords to playing full songs. Practice really does make perfect!",
-    imageUrl: "https://images.unsplash.com/photo-1760413209533-c65c9e6b538f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxndWl0YXIlMjBtdXNpYyUyMGhvYmJ5fGVufDF8fHx8MTc2MTU3MzkwOXww&ixlib=rb-4.1.0&q=80&w=1080",
-    likes: 156,
-    comments: [],
-    timestamp: "1 day ago",
-  },
-  {
-    id: "5",
-    userId: "2",
-    userName: "Marcus Rodriguez",
-    userAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-    category: "Gambling",
-    streakCount: 21,
-    title: "21-Day Poker Winning Streak! ♠️",
-    description: "Read the table, trust the process. Bankroll is looking healthy!",
-    imageUrl: "https://images.unsplash.com/photo-1719228159189-148c8c45e634?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwb2tlciUyMGNhc2lubyUyMGNhcmRzfGVufDF8fHx8MTc2MTU3MzkwOHww&ixlib=rb-4.1.0&q=80&w=1080",
-    likes: 98,
-    comments: [],
-    timestamp: "2 days ago",
-  },
-  {
-    id: "6",
-    userId: "1",
-    userName: "Sarah Chen",
-    userAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
-    category: "Fitness",
-    streakCount: 30,
-    title: "30-Day Running Challenge Complete! 🏃‍���️",
-    description: "Started with 1 mile, now running 5 miles daily. Marathon training here I come!",
-    imageUrl: "https://images.unsplash.com/photo-1596913152332-e56f2cc8165c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxydW5uaW5nJTIwbWFyYXRob24lMjBmaXRuZXNzfGVufDF8fHx8MTc2MTU3MzkwOXww&ixlib=rb-4.1.0&q=80&w=1080",
-    likes: 267,
-    comments: [],
-    timestamp: "3 days ago",
-  },
-];
 
 type View = "feed" | "leaderboard" | "messages" | "arena" | "sync" | "profile" | "help";
 
@@ -247,7 +42,7 @@ interface UserProfile {
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>("feed");
-  const [posts, setPosts] = useState<Post[]>(mockPosts);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     accessToken: null,
@@ -266,6 +61,50 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [backingUserIds, setBackingUserIds] = useState<Set<string>>(new Set());
   const [profileBackingCounts, setProfileBackingCounts] = useState<{ backingCount: number; backerCount: number }>({ backingCount: 0, backerCount: 0 });
+  // Only toast a feed load failure once until a load succeeds again
+  const postsLoadErrorShownRef = useRef(false);
+  // Prevent overlapping achievement saves (and duplicate toasts)
+  const achievementsSavingRef = useRef(false);
+
+  // Reset everything tied to the signed-in user
+  const clearSessionState = () => {
+    setAuthState({
+      isAuthenticated: false,
+      accessToken: null,
+      userId: null,
+      userName: null,
+      isNewUser: false,
+    });
+    setUserProfile(null);
+    setViewingUserId(null);
+    setViewingUserProfile(null);
+    setCurrentView("feed");
+    setBackingUserIds(new Set());
+    setPosts([]);
+    setMessageUserId(null);
+    setMessageUserInfo(null);
+    setShowWelcome(false);
+  };
+
+  // Keep the access token fresh: Supabase refreshes it roughly hourly
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        clearSessionState();
+        return;
+      }
+      if ((event === "TOKEN_REFRESHED" || event === "SIGNED_IN") && session?.access_token) {
+        setAuthState(prev =>
+          prev.isAuthenticated && prev.userId === session.user?.id && prev.accessToken !== session.access_token
+            ? { ...prev, accessToken: session.access_token }
+            : prev
+        );
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Users the current user has meaningfully interacted with, sorted by interaction depth
   const interactedUsers = useMemo(() => {
@@ -320,6 +159,13 @@ export default function App() {
   // Function to load posts from server
   const loadPosts = async (currentUserId?: string) => {
     const userId = currentUserId || authState.userId;
+    const showLoadError = () => {
+      setPosts([]);
+      if (!postsLoadErrorShownRef.current) {
+        postsLoadErrorShownRef.current = true;
+        toast.error("Couldn't load streaks. Please try again.");
+      }
+    };
     try {
       const postsResponse = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/posts`,
@@ -331,7 +177,7 @@ export default function App() {
       );
 
       if (!postsResponse.ok) {
-        setPosts(mockPosts);
+        showLoadError();
         return [];
       }
 
@@ -353,14 +199,16 @@ export default function App() {
             isLiked: userId ? (day.likedBy || []).includes(userId) : false,
           })),
         }));
-        setPosts([...hydratedPosts, ...mockPosts]);
+        setPosts(hydratedPosts);
+        postsLoadErrorShownRef.current = false;
         return hydratedPosts;
       } else {
-        setPosts(mockPosts);
+        showLoadError();
         return [];
       }
     } catch (err) {
-      setPosts(mockPosts);
+      console.error("Error loading posts:", err);
+      showLoadError();
       return [];
     }
   };
@@ -374,22 +222,24 @@ export default function App() {
 
   // Function to update user achievements
   const updateAchievements = async () => {
-    if (!authState.isAuthenticated || !authState.userId) return;
+    if (!authState.isAuthenticated || !authState.userId || !userProfile) return;
+    if (achievementsSavingRef.current) return;
 
     try {
       // Get user's posts
       const userPosts = posts.filter(p => p.userId === authState.userId);
-      
+
       // Get current achievements
-      const currentAchievements = userProfile?.achievements || [];
-      
+      const currentAchievements = userProfile.achievements || [];
+
       // Calculate newly unlocked achievements
       const newAchievements = getNewlyUnlockedAchievements(userPosts, currentAchievements);
-      
+
       if (newAchievements.length > 0) {
-        // Get all unlocked achievement IDs
-        const allUnlockedIds = getUnlockedAchievementIds(userPosts);
-        
+        achievementsSavingRef.current = true;
+        // Keep everything already earned, plus what is unlocked now
+        const allUnlockedIds = Array.from(new Set([...currentAchievements, ...getUnlockedAchievementIds(userPosts)]));
+
         // Update user profile with new achievements
         const response = await fetch(
           `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/user/${authState.userId}`,
@@ -405,15 +255,8 @@ export default function App() {
 
         if (response.ok) {
           const updatedUser = await response.json();
-          setUserProfile({
-            name: updatedUser.name || authState.userName || 'User',
-            alias: updatedUser.alias,
-            avatar: updatedUser.avatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${authState.userId}`,
-            bio: updatedUser.bio || 'Streakz member',
-            isPublic: updatedUser.isPublic ?? true,
-            websiteLinks: updatedUser.websiteLinks || [],
-            achievements: updatedUser.achievements || [],
-          });
+          const savedAchievements: string[] = Array.from(new Set([...allUnlockedIds, ...(updatedUser.achievements || [])]));
+          setUserProfile(prev => prev ? { ...prev, achievements: savedAchievements } : prev);
 
           // Show toast notification for new achievements
           newAchievements.forEach(achievementId => {
@@ -426,6 +269,8 @@ export default function App() {
       }
     } catch (error) {
       console.error("Error updating achievements:", error);
+    } finally {
+      achievementsSavingRef.current = false;
     }
   };
 
@@ -516,18 +361,13 @@ export default function App() {
             const serverUsers = await usersResponse.json();
             console.log("Loaded users from server:", serverUsers);
             
-            // Combine server users with mock users if serverUsers is an array
-            if (Array.isArray(serverUsers)) {
-              setAllUsers([...serverUsers, ...mockUsers.map(u => ({ id: u.id, name: u.name, avatar: u.avatar }))]);
-            } else {
-              setAllUsers(mockUsers.map(u => ({ id: u.id, name: u.name, avatar: u.avatar })));
-            }
+            setAllUsers(Array.isArray(serverUsers) ? serverUsers : []);
           } else {
-            setAllUsers(mockUsers.map(u => ({ id: u.id, name: u.name, avatar: u.avatar })));
+            setAllUsers([]);
           }
         } catch (err) {
-          // Silently fall back to mock users - server may not be deployed yet
-          setAllUsers(mockUsers.map(u => ({ id: u.id, name: u.name, avatar: u.avatar })));
+          console.error("Error loading users:", err);
+          setAllUsers([]);
         }
       } catch (error) {
         console.error("Error checking session:", error);
@@ -602,30 +442,41 @@ export default function App() {
     loadUserProfile();
   }, [authState.isAuthenticated, authState.userId, authState.accessToken]);
 
-  // Check and update achievements when posts change
+  // Signature of the current user's own streak data that achievements depend on
+  const ownStreakSignature = useMemo(() => {
+    if (!authState.userId) return "";
+    return JSON.stringify(
+      posts
+        .filter(p => p.userId === authState.userId)
+        .map(p => [
+          p.id,
+          p.category,
+          p.streakCount,
+          p.isParentStreak ? 1 : 0,
+          p.isClosed ? 1 : 0,
+          p.streakDays?.length ?? 0,
+          p.likes || 0,
+          (p.streakDays || []).reduce((sum, day) => sum + (day.likes || 0), 0),
+          p.comments?.length ?? 0,
+        ])
+    );
+  }, [posts, authState.userId]);
+  const profileLoaded = userProfile !== null;
+  const earnedAchievementsKey = (userProfile?.achievements || []).join(",");
+
+  // Check and update achievements when the user's own streaks change (once their profile is loaded)
   useEffect(() => {
-    if (authState.isAuthenticated && posts.length > 0 && userProfile) {
+    if (authState.isAuthenticated && profileLoaded && ownStreakSignature !== "[]" && ownStreakSignature !== "") {
       updateAchievements();
     }
-  }, [posts.length, authState.isAuthenticated]);
+  }, [ownStreakSignature, authState.isAuthenticated, profileLoaded, earnedAchievementsKey]);
 
-  // Load backing list when authenticated and cleanup mock backing relationships
+  // Load backing list when authenticated
   useEffect(() => {
     const loadBackingList = async () => {
       if (!authState.isAuthenticated || !authState.accessToken) return;
 
       try {
-        // First cleanup any backing relationships to mock users
-        await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/cleanup-mock-backing`,
-          {
-            method: 'POST',
-            headers: {
-              "Authorization": `Bearer ${publicAnonKey}`,
-            },
-          }
-        );
-        
         // Try parameterized endpoint first, fall back to static route
         if (!authState.userId) return;
         let ids: string[] = [];
@@ -710,11 +561,12 @@ export default function App() {
 
   // Load viewing user's full profile
   useEffect(() => {
+    let cancelled = false;
+    // Never show the previous person's profile while the new one loads
+    setViewingUserProfile(null);
+
     const loadViewingUserProfile = async () => {
-      if (!viewingUserId) {
-        setViewingUserProfile(null);
-        return;
-      }
+      if (!viewingUserId) return;
 
       try {
         const response = await fetch(
@@ -726,16 +578,21 @@ export default function App() {
           }
         );
 
+        if (cancelled) return;
         if (response.ok) {
           const profile = await response.json();
-          setViewingUserProfile(profile);
+          if (!cancelled) setViewingUserProfile(profile);
         }
       } catch (error) {
-        console.error("Error loading viewing user profile:", error);
+        if (!cancelled) console.error("Error loading viewing user profile:", error);
       }
     };
 
     loadViewingUserProfile();
+
+    return () => {
+      cancelled = true;
+    };
   }, [viewingUserId]);
 
   const handleBackToggle = async (userId: string) => {
@@ -825,14 +682,10 @@ export default function App() {
       const supabase = getSupabaseClient();
 
       await supabase.auth.signOut();
-      setAuthState({
-        isAuthenticated: false,
-        accessToken: null,
-        userId: null,
-        userName: null,
-      });
     } catch (error) {
       console.error("Error logging out:", error);
+    } finally {
+      clearSessionState();
     }
   };
 
@@ -866,12 +719,7 @@ export default function App() {
       // Log out after successful deletion
       const supabase = getSupabaseClient();
       await supabase.auth.signOut();
-      setAuthState({
-        isAuthenticated: false,
-        accessToken: null,
-        userId: null,
-        userName: null,
-      });
+      clearSessionState();
     } catch (error: any) {
       console.error("Error deleting account:", error);
       toast.error("Failed to delete account. Please try again.");
@@ -965,11 +813,13 @@ export default function App() {
       const savedPost = await response.json();
       console.log("Post saved to server:", savedPost);
 
+      toast.success("Streak posted");
+
       // Refresh posts from server to ensure sync across devices
       await loadPosts();
     } catch (error) {
       console.error("Error creating post:", error);
-      // Optionally show error to user
+      toast.error("Couldn't post your streak. Please try again.");
     }
   };
 
@@ -983,7 +833,11 @@ export default function App() {
       if (!post) return;
 
       const currentDays = post.streakDays || [];
-      const nextDayNumber = currentDays.length + 1;
+      // Continue from the highest day so far (a streak may start at day N, not day 1)
+      const lastDayNumber = currentDays.length > 0
+        ? Math.max(...currentDays.map(day => day.dayNumber || 0))
+        : (post.streakCount || 0);
+      const nextDayNumber = lastDayNumber + 1;
       
       const newDay = {
         dayNumber: nextDayNumber,
@@ -995,10 +849,10 @@ export default function App() {
         isLiked: false,
       };
 
+      // PUT /posts/:id only accepts post fields; likes/comments stay server-owned
       const updatedPost = {
-        ...post,
         streakCount: nextDayNumber,
-        streakDays: [...currentDays, newDay],
+        streakDays: [...currentDays.map(({ isLiked, ...day }) => day), newDay],
         timestamp: "Just now",
       };
 
@@ -1015,17 +869,26 @@ export default function App() {
         }
       );
 
-      if (response.ok) {
-        // Refresh posts from server to ensure sync across devices
-        await loadPosts();
+      if (!response.ok) {
+        throw new Error(`Request failed (${response.status})`);
       }
+
+      // Refresh posts from server to ensure sync across devices
+      await loadPosts();
     } catch (error) {
       console.error("Error adding to streak:", error);
+      toast.error("Couldn't add today's day. Please try again.");
     }
   };
 
   const handleLike = async (postId: string) => {
     if (!authState.accessToken) return;
+
+    const previousPost = posts.find(post => post.id === postId);
+    const rollback = () => {
+      if (previousPost) setPosts(prev => prev.map(post => (post.id === postId ? previousPost : post)));
+      toast.error("Couldn't save your like. Please try again.");
+    };
 
     // Optimistic update
     setPosts(prev => prev.map(post => {
@@ -1058,14 +921,22 @@ export default function App() {
             ? { ...updated, isLiked: (updated.likedBy || []).includes(authState.userId!) }
             : post
         ));
+      } else {
+        rollback();
       }
     } catch {
-      // Optimistic update stays; server will sync on next load
+      rollback();
     }
   };
 
   const handleLikeDay = async (postId: string, dayNumber: number) => {
     if (!authState.accessToken) return;
+
+    const previousPost = posts.find(post => post.id === postId);
+    const rollback = () => {
+      if (previousPost) setPosts(prev => prev.map(post => (post.id === postId ? previousPost : post)));
+      toast.error("Couldn't save your like. Please try again.");
+    };
 
     // Optimistic update
     setPosts(prev => prev.map(post => {
@@ -1111,9 +982,11 @@ export default function App() {
             })),
           };
         }));
+      } else {
+        rollback();
       }
     } catch {
-      // Optimistic update stays
+      rollback();
     }
   };
 
@@ -1205,7 +1078,7 @@ export default function App() {
       }
 
       // Only update local state if server deletion was successful
-      setPosts(posts.filter(post => post.id !== postId));
+      setPosts(prev => prev.filter(post => post.id !== postId));
       toast.success("Post deleted successfully");
     } catch (error) {
       console.error("Error deleting post:", error);
@@ -1228,8 +1101,12 @@ export default function App() {
     isPublic: boolean;
     websiteLinks: string[];
   }) => {
-    setUserProfile(updates);
-    
+    const previousProfile = userProfile;
+    const previousUserName = authState.userName;
+
+    // Keep fields the form doesn't edit (alias, achievements)
+    setUserProfile(prev => ({ ...prev, ...updates }));
+
     // Update auth state with new name
     setAuthState(prev => ({
       ...prev,
@@ -1237,7 +1114,7 @@ export default function App() {
     }));
 
     // Update all existing posts from this user
-    setPosts(posts.map(post => {
+    setPosts(prev => prev.map(post => {
       if (post.userId === authState.userId) {
         return {
           ...post,
@@ -1250,7 +1127,7 @@ export default function App() {
 
     // Save to backend
     try {
-      const userProfile = await fetch(
+      const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/user/${authState.userId}`,
         {
           method: 'PUT',
@@ -1261,12 +1138,18 @@ export default function App() {
           body: JSON.stringify(updates),
         }
       );
-      
-      if (!userProfile.ok) {
-        console.error("Failed to update profile on server");
+
+      if (!response.ok) {
+        throw new Error(`Request failed (${response.status})`);
       }
+      toast.success("Profile saved");
     } catch (error) {
       console.error("Error updating profile:", error);
+      // Roll back to what was saved before
+      setUserProfile(previousProfile);
+      setAuthState(prev => ({ ...prev, userName: previousUserName }));
+      loadPosts();
+      toast.error("Couldn't save your profile. Please try again.");
     }
   };
 
@@ -1291,7 +1174,7 @@ export default function App() {
     const longestStreak = userPosts.length > 0 
       ? Math.max(...userPosts.map(post => post.streakCount))
       : 0;
-    const activeStreaks = userPosts.length;
+    const activeStreaks = userPosts.filter(post => !post.isClosed).length;
 
     return { totalStreaks, longestStreak, activeStreaks };
   };
@@ -1312,14 +1195,8 @@ export default function App() {
       return currentUserWithStats;
     }
     
-    // Find user from mockUsers first
-    const mockUser = mockUsers.find(u => u.id === viewingUserId);
-    if (mockUser) {
-      return mockUser;
-    }
-    
     // Use the full profile if we have it
-    if (viewingUserProfile) {
+    if (viewingUserProfile && viewingUserProfile.id === viewingUserId) {
       // Calculate stats from their posts
       const userPostsFiltered = posts.filter(p => p.userId === viewingUserId);
       const totalStreaks = userPostsFiltered.length;
@@ -1336,7 +1213,7 @@ export default function App() {
         joined: viewingUserProfile.joined || "2024",
         totalStreaks,
         longestStreak,
-        activeStreaks: totalStreaks,
+        activeStreaks: userPostsFiltered.filter(post => !post.isClosed).length,
         isPublic: viewingUserProfile.isPublic ?? true,
         websiteLinks: viewingUserProfile.websiteLinks || [],
         achievements: viewingUserProfile.achievements || [],
@@ -1361,7 +1238,7 @@ export default function App() {
         joined: "2024",
         totalStreaks,
         longestStreak,
-        activeStreaks: totalStreaks,
+        activeStreaks: userPostsFiltered.filter(post => !post.isClosed).length,
         isPublic: true,
         achievements: [],
       };
@@ -1384,7 +1261,7 @@ export default function App() {
         joined: "2024",
         totalStreaks,
         longestStreak,
-        activeStreaks: totalStreaks,
+        activeStreaks: userPostsFiltered.filter(post => !post.isClosed).length,
         isPublic: true,
         achievements: [],
       };
@@ -1399,13 +1276,11 @@ export default function App() {
 
   // Calculate leaderboard users with stats - only show real registered users with streaks
   const getLeaderboardUsers = () => {
-    const mockUserIds = new Set(mockUsers.map(u => u.id));
-
     // Build user map from posts directly (catches users not yet in allUsers)
     const userMap = new Map<string, { id: string; name: string; avatar: string }>();
-    allUsers.forEach(u => { if (!mockUserIds.has(u.id)) userMap.set(u.id, u); });
+    allUsers.forEach(u => userMap.set(u.id, u));
     posts.forEach(p => {
-      if (!mockUserIds.has(p.userId) && !userMap.has(p.userId)) {
+      if (!userMap.has(p.userId)) {
         userMap.set(p.userId, { id: p.userId, name: p.userName, avatar: p.userAvatar });
       }
     });
@@ -1649,6 +1524,7 @@ export default function App() {
             )}
             {currentView === "profile" && (
               <ProfileView 
+                accessToken={authState.accessToken}
                 user={profileUser} 
                 posts={profileUserPosts}
                 currentUserId={currentUserWithStats.id}
@@ -1679,12 +1555,13 @@ export default function App() {
           {/* Right rail: who leads this week, and where people are active */}
           {showRail && (
             <aside className="hidden xl:flex flex-col gap-[14px] sticky top-20">
+              {leaderboardUsers.length > 0 && (
               <section className="rounded-[20px] bg-surface p-[22px]">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-base font-semibold text-white">Top streakers this week</h2>
                   <button onClick={() => goTo("leaderboard")} className="text-[13px] font-medium text-muted-text hover:text-white">View board</button>
                 </div>
-                {mockUsers.slice(0, 3).map((user, index) => (
+                {leaderboardUsers.slice(0, 3).map((user, index) => (
                   <button
                     key={user.id}
                     className="grid w-full grid-cols-[18px_32px_minmax(0,1fr)_auto] items-center gap-2.5 h-11 -mx-2 px-2 rounded-[10px] text-left hover:bg-raised transition-colors"
@@ -1693,11 +1570,12 @@ export default function App() {
                   >
                     <span className="text-faint text-sm tabular-nums">{index + 1}</span>
                     <img src={user.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-                    <span className="truncate text-sm font-medium text-white">{user.alias || user.name}</span>
+                    <span className="truncate text-sm font-medium text-white">{user.name}</span>
                     <span className="text-sm text-white tabular-nums">{user.totalStreaks}<span className="ml-1 text-faint">streaks</span></span>
                   </button>
                 ))}
               </section>
+              )}
 
               <section className="rounded-[20px] bg-surface p-[22px]">
                 <div className="flex items-center justify-between mb-2">

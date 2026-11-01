@@ -108,10 +108,23 @@ function MentionInput({
   );
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function renderTextWithMentions(text: string, onUserClick?: (userId: string) => void, users: MentionUser[] = []) {
-  const parts = text.split(/(@[\w][\w\s]*[\w]|@[\w]+)/g);
+  // Match known user names (longest first, so "Bob Smith" wins over "Bob"); otherwise a single @word
+  const knownNames = users
+    .map(u => u.name)
+    .filter(name => name && name.trim())
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegExp);
+  const mentionPattern = knownNames.length > 0
+    ? new RegExp(`(@(?:${knownNames.join("|")})(?!\\w)|@\\w+)`, "gi")
+    : /(@\w+)/g;
+  const parts = text.split(mentionPattern);
   return parts.map((part, i) => {
-    if (part.startsWith("@")) {
+    if (part && part.startsWith("@")) {
       const name = part.slice(1).trim();
       const user = users.find(u => u.name.toLowerCase() === name.toLowerCase());
       return (
@@ -234,6 +247,20 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
     onLike?.(post.id);
   };
 
+  // Streak posts are liked per day (the post-level like is never shown for them)
+  const currentDay = post.isParentStreak && post.streakDays && post.streakDays.length > 0
+    ? post.streakDays[currentDayIndex] ?? post.streakDays[0]
+    : undefined;
+  const handleLikeCurrent = () => {
+    if (currentDay) {
+      onLikeDay?.(post.id, currentDay.dayNumber);
+    } else {
+      handleLike();
+    }
+  };
+  const currentLiked = currentDay ? !!currentDay.isLiked : isLiked;
+  const currentLikes = currentDay ? currentDay.likes || 0 : likesCount;
+
   const handleDoubleClick = () => {
     if (!isLiked) {
       setIsLiked(true);
@@ -302,8 +329,9 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
           <Button
             variant="ghost"
             size="sm"
-            className="opacity-0 group-hover/post:opacity-100 transition-opacity h-8 w-8 p-0 text-muted-text hover:text-white hidden sm:flex"
+            className="flex sm:opacity-0 sm:group-hover/post:opacity-100 focus-visible:opacity-100 transition-opacity h-8 w-8 p-0 text-muted-text hover:text-white"
             title="End this streak"
+            aria-label="End this streak"
             onClick={() => setShowCloseConfirm(true)}
           >
             <FlagOff className="h-4 w-4" />
@@ -313,7 +341,9 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
           <Button
             variant="ghost"
             size="sm"
-            className="opacity-0 group-hover/post:opacity-100 transition-opacity h-8 w-8 p-0 text-muted-text hover:text-red-500 hidden sm:flex"
+            className="flex sm:opacity-0 sm:group-hover/post:opacity-100 focus-visible:opacity-100 transition-opacity h-8 w-8 p-0 text-muted-text hover:text-red-500"
+            title="Delete this streak"
+            aria-label="Delete this streak"
             onClick={() => setShowDeleteConfirm(true)}
           >
             <Trash2 className="h-4 w-4" />
@@ -646,20 +676,20 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
                   variant="ghost"
                   size="sm"
                   className={`gap-2 transition-all duration-300 ${
-                    isLiked 
+                    currentLiked 
                       ? 'text-flame' 
                       : 'text-body hover:text-white'
                   }`}
-                  onClick={handleLike}
+                  onClick={handleLikeCurrent}
                 >
                   <Flame 
                     className={`h-5 w-5 transition-all duration-300 ${
-                      isLiked 
+                      currentLiked 
                         ? 'fill-flame scale-110' 
                         : 'fill-none'
                     }`} 
                   />
-                  <span className="tabular-nums">{likesCount}</span>
+                  <span className="tabular-nums">{currentLikes}</span>
                 </Button>
               </div>
               <div className="flex gap-2">

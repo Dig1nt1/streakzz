@@ -56,7 +56,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
   }, [userPosts, currentUserId]);
 
   const handleSubmit = () => {
-    if (category && streakCount && title && description && imageUrl) {
+    if (!isUploading && category && streakCount && title && description && imageUrl) {
       onCreatePost({
         category,
         streakCount: parseInt(streakCount),
@@ -71,7 +71,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
   };
 
   const handleAddToStreak = () => {
-    if (selectedStreakId && description && imageUrl && onAddToStreak) {
+    if (!isUploading && selectedStreakId && description && imageUrl && onAddToStreak) {
       onAddToStreak(selectedStreakId, {
         description,
         imageUrl,
@@ -84,7 +84,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
 
   const resetForm = () => {
     setCategory("");
-    setStreakCount("");
+    setStreakCount("1");
     setTitle("");
     setDescription("");
     setImageUrl("");
@@ -114,7 +114,6 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
     }
 
     setIsUploading(true);
-    setMediaType(isVideo ? 'video' : 'image');
 
     try {
       // Upload to Supabase Storage via server
@@ -137,10 +136,17 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
       }
 
       const { url } = await response.json();
+      if (!url) {
+        throw new Error('Upload response missing url');
+      }
+      // Set url and type together so they never disagree
       setImageUrl(url);
+      setMediaType(isVideo ? 'video' : 'image');
       toast.success(isVideo ? 'Video uploaded successfully!' : 'Image uploaded successfully!');
     } catch (error) {
       console.error('Upload error:', error);
+      setImageUrl("");
+      setMediaType('image');
       toast.error(isVideo ? 'Failed to upload video' : 'Failed to upload image');
     } finally {
       setIsUploading(false);
@@ -264,7 +270,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
               <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
               <Button 
                 onClick={handleSubmit} 
-                disabled={!category || !streakCount || !title || !description || !imageUrl}
+                disabled={isUploading || !category || !streakCount || !title || !description || !imageUrl}
                 className="bg-white text-black hover:bg-[#e6e3df]"
               >
                 Create Streak
@@ -376,7 +382,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                   <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
                   <Button 
                     onClick={handleAddToStreak}
-                    disabled={!selectedStreakId || !description || !imageUrl}
+                    disabled={isUploading || !selectedStreakId || !description || !imageUrl}
                     className="bg-white text-black hover:bg-[#e6e3df]"
                   >
                     <PlusCircle className="h-4 w-4 mr-2" />
