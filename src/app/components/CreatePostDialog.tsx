@@ -4,13 +4,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Label } from "./ui/label";
-import { Plus, Upload, Loader2, PlusCircle } from "lucide-react";
+import { Plus, Loader2, ImagePlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Card } from "./ui/card";
-import { Badge } from "./ui/badge";
+import { StreakChain } from "./StreakChain";
 import { Post } from "./PostCard";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
 
@@ -93,9 +91,13 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
     setOpen(false);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    e.target.value = "";
+    if (file) uploadFile(file);
+  };
+
+  const uploadFile = async (file: File) => {
 
     // Validate file type
     const isImage = file.type.startsWith('image/');
@@ -142,7 +144,6 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
       // Set url and type together so they never disagree
       setImageUrl(url);
       setMediaType(isVideo ? 'video' : 'image');
-      toast.success(isVideo ? 'Video uploaded successfully!' : 'Image uploaded successfully!');
     } catch (error) {
       console.error('Upload error:', error);
       setImageUrl("");
@@ -153,244 +154,204 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
     }
   };
 
+  const categories = [
+    { value: "Fitness", label: "Fitness" },
+    { value: "Gaming", label: "Gaming" },
+    { value: "Work", label: "Work & Productivity" },
+    { value: "Hobbies", label: "Hobbies" },
+    { value: "Goals", label: "Personal Growth" },
+    { value: "Social", label: "Social & Fun" },
+    { value: "Finance", label: "Finance & Lifestyle" },
+  ];
+  const nextDayOf = (streak: Post) => {
+    const days = streak.streakDays || [];
+    return (days.length ? Math.max(...days.map(d => d.dayNumber || 0)) : streak.streakCount || 0) + 1;
+  };
+  const selectedStreak = activeStreaks.find(s => s.id === selectedStreakId);
+  const fieldClass = "h-11 rounded-xl border-transparent bg-raised px-3.5 text-[15px] text-white placeholder:text-faint focus-visible:border-[#6a6460]";
+  const areaClass = "min-h-[96px] rounded-xl border-transparent bg-raised px-3.5 py-3 text-[15px] leading-[22px] text-white placeholder:text-faint focus-visible:border-[#6a6460] focus-visible:ring-0";
+
+  // The photo or video for this day: a drop area that becomes the preview once uploaded
+  const mediaPicker = (id: string) => (
+    <div className="space-y-2">
+      <Label htmlFor={id} className="text-sm text-white">Photo or video</Label>
+      <label
+        htmlFor={id}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files?.[0]; if (file && !isUploading) uploadFile(file); }}
+        className={`group relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-[16px] bg-raised transition-colors [&:has(:focus-visible)]:ring-2 [&:has(:focus-visible)]:ring-white ${imageUrl ? "aspect-[16/10]" : "h-36 border border-dashed border-[#4a4643] hover:border-[#8a837d]"}`}
+      >
+        {imageUrl ? (
+          mediaType === "video"
+            ? <video src={imageUrl} className="h-full w-full object-cover" muted playsInline />
+            : <img src={imageUrl} alt="Selected photo" className="h-full w-full object-cover" />
+        ) : (
+          <span className="flex flex-col items-center gap-1.5 px-6 text-center">
+            <span className="mb-1 grid h-10 w-10 place-items-center rounded-full bg-[#363330] text-white">
+              <ImagePlus className="h-5 w-5" />
+            </span>
+            <span className="text-sm font-medium text-white">Add a photo or video</span>
+            <span className="text-xs text-faint">Click or drop a file here</span>
+          </span>
+        )}
+        {imageUrl && !isUploading && (
+          <span className="absolute bottom-3 left-3 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold text-white">Replace</span>
+        )}
+        {isUploading && (
+          <span className="absolute inset-0 grid place-items-center bg-black/60 text-sm font-medium text-white">
+            <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Uploading {mediaType}…</span>
+          </span>
+        )}
+        <input
+          id={id}
+          type="file"
+          accept="image/*,video/*"
+          onChange={handleFileUpload}
+          disabled={isUploading}
+          className="sr-only"
+          aria-describedby={`${id}-limit`}
+        />
+      </label>
+      <div className="flex items-center justify-between">
+        <p id={`${id}-limit`} className="text-xs text-faint">Images up to 5 MB, videos up to 50 MB</p>
+        {imageUrl && !isUploading && (
+          <button type="button" onClick={() => { setImageUrl(""); setMediaType("image"); }} className="inline-flex items-center gap-1 text-xs font-medium text-muted-text hover:text-white">
+            <X className="h-3.5 w-3.5" />Remove
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger ?? (
-          <Button className="gap-2 bg-white text-black hover:bg-[#e6e3df]">
+          <Button className="gap-2">
             <Plus className="h-4 w-4" />
             Post Streak
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-surface border-rule text-white">
-        <DialogHeader>
-          <DialogTitle>Share Your Streak</DialogTitle>
-          <DialogDescription>
-            Create a new streak or add to an existing one
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+        <Tabs defaultValue="new" className="flex min-h-0 flex-1 flex-col gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 text-left">
+            <DialogTitle className="text-xl font-semibold">Share your streak</DialogTitle>
+            <DialogDescription className="text-muted-text">Start something new, or log today on a streak you're keeping.</DialogDescription>
+            <TabsList className="mt-4 grid h-10 w-full grid-cols-2 bg-ground">
+              <TabsTrigger value="new">New streak</TabsTrigger>
+              <TabsTrigger value="continue">Add a day</TabsTrigger>
+            </TabsList>
+          </DialogHeader>
 
-        <Tabs defaultValue="new" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-ground">
-            <TabsTrigger value="new">New Streak</TabsTrigger>
-            <TabsTrigger value="continue">Continue Streak</TabsTrigger>
-          </TabsList>
+          {/* New streak */}
+          <TabsContent value="new" className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6">
+              {mediaPicker("new-media")}
 
-          {/* New Streak Tab */}
-          <TabsContent value="new" className="space-y-4 py-4">
-            <div className="space-y-2 bg-transparent">
-              <Label htmlFor="category">Category</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger id="category"
-                   className="bg-[rgba(255,255,255,0.1)] text-white border border-rule rounded-md">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Gaming">Gaming</SelectItem>
-                  <SelectItem value="Work">Work & Productivity</SelectItem>
-                  <SelectItem value="Fitness">Fitness</SelectItem>
-                  <SelectItem value="Hobbies">Hobbies</SelectItem>
-                  <SelectItem value="Goals">Personal Growth</SelectItem>
-                  <SelectItem value="Social">Social & Fun</SelectItem>
-                  <SelectItem value="Finance">Finance & Lifestyle</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="streak">Starting Day</Label>
-              <Input
-                id="streak"
-                type="number"
-                value={streakCount}
-                readOnly
-                className="text-black bg-gray-100 cursor-not-allowed focus:ring-0"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="title">Streak Title</Label>
-              <Input
-                id="title"
-                placeholder="e.g., Morning Meditation Journey"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)} 
-               
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Day 1 Description</Label>
-              <Textarea
-                id="description"
-                placeholder="What did you accomplish today?"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3} 
-               
-              />
-            </div>
-
-            <div className="space-y-2 bg-[rgba(217,213,213,0)]">
-              <Label htmlFor="image">Media</Label>
-              <div>
-                <label className="block">
-                  <Input
-                    type="file"
-                    accept="image/*,video/*"
-                    onChange={handleFileUpload}
-                    disabled={isUploading}
-                    className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-flame file:text-white file:cursor-pointer hover:file:bg-flame"
-                  />
-                </label>
-                <p className="text-xs text-body mt-2">
-                  {isUploading ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Uploading {mediaType}...
-                    </span>
-                  ) : (
-                    'Upload an image (max 5MB) or video (max 50MB)'
-                  )}
-                </p>
+              <div className="space-y-2">
+                <Label htmlFor="title" className="text-sm text-white">Title</Label>
+                <Input id="title" placeholder="e.g. Morning Meditation Journey" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} className={fieldClass} />
               </div>
-              {imageUrl && (
-                <div className="mt-2 rounded-lg overflow-hidden border border-rule bg-black">
-                  {mediaType === 'video' ? (
-                    <video src={imageUrl} className="w-full h-48 object-contain" controls />
-                  ) : (
-                    <img src={imageUrl} alt="Preview" className="w-full h-48 object-cover" />
-                  )}
+
+              <fieldset className="space-y-2">
+                <legend className="mb-2 text-sm font-medium text-white">Category</legend>
+                <div className="flex flex-wrap gap-2" role="radiogroup">
+                  {categories.map(c => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={category === c.value}
+                      onClick={() => setCategory(c.value)}
+                      className={`h-9 rounded-full px-3.5 text-sm font-medium transition-colors ${category === c.value ? "bg-white text-black" : "bg-raised text-[#d6d3cf] hover:bg-[#363330] hover:text-white"}`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </fieldset>
+
+              <div className="space-y-2">
+                <Label htmlFor="description" className="text-sm text-white">Day 1: what did you do today?</Label>
+                <Textarea id="description" placeholder="Ran 3 km before work, felt great." value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={areaClass} />
+              </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button 
-                onClick={handleSubmit} 
-                disabled={isUploading || !category || !streakCount || !title || !description || !imageUrl}
-                className="bg-white text-black hover:bg-[#e6e3df]"
-              >
-                Create Streak
-              </Button>
+            <div className="flex items-center justify-between gap-3 border-t border-rule px-6 py-4">
+              <span className="hidden text-xs text-faint sm:block">Starts at day 1</span>
+              <div className="ml-auto flex gap-2">
+                <Button variant="ghost" onClick={() => setOpen(false)} className="text-muted-text">Cancel</Button>
+                <Button onClick={handleSubmit} disabled={isUploading || !category || !streakCount || !title || !description || !imageUrl}>
+                  Create streak
+                </Button>
+              </div>
             </div>
           </TabsContent>
 
-          {/* Continue Streak Tab */}
-          <TabsContent value="continue" className="space-y-4 py-4">
-            {activeStreaks.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-text">You don't have any active streaks yet.</p>
-                <p className="text-muted-text text-sm mt-2">Create a new streak to get started!</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label>Select Streak</Label>
-                  <div className="grid gap-2 max-h-[200px] overflow-y-auto">
-                    {activeStreaks.map((streak) => (
-                      <Card
-                        key={streak.id}
-                        onClick={() => setSelectedStreakId(streak.id)}
-                        className={`p-3 cursor-pointer transition-all ${
-                          selectedStreakId === streak.id
-                            ? 'bg-raised border-white'
-                            : 'bg-raised border-rule hover:bg-raised'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <img 
-                            src={streak.streakDays?.[0]?.imageUrl || streak.imageUrl} 
-                            alt={streak.title}
-                            className="w-12 h-12 object-cover rounded"
-                          />
-                          <div className="flex-1">
-                            <h4 className="text-white text-sm">{streak.title}</h4>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-xs">
-                                {streak.category}
-                              </Badge>
-                              <span className="text-xs text-muted-text">
-                                Day {streak.streakDays?.length || 1}
+          {/* Add a day to an active streak */}
+          <TabsContent value="continue" className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6">
+              {activeStreaks.length === 0 ? (
+                <div className="rounded-[16px] bg-raised px-5 py-8 text-center">
+                  <p className="text-sm font-medium text-white">No active streaks yet</p>
+                  <p className="mt-1 text-sm text-muted-text">Start one in New streak, then come back here each day.</p>
+                </div>
+              ) : (
+                <>
+                  <fieldset className="space-y-2">
+                    <legend className="mb-2 text-sm font-medium text-white">Which streak?</legend>
+                    <div className="max-h-[240px] space-y-2 overflow-y-auto" role="radiogroup">
+                      {activeStreaks.map(streak => {
+                        const selected = selectedStreakId === streak.id;
+                        const next = nextDayOf(streak);
+                        return (
+                          <button
+                            key={streak.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            onClick={() => setSelectedStreakId(streak.id)}
+                            className={`flex w-full items-center gap-3 rounded-[14px] border-[1.5px] p-2.5 text-left transition-colors ${selected ? "border-white bg-raised" : "border-transparent bg-raised hover:bg-[#363330]"}`}
+                          >
+                            <img src={streak.streakDays?.[0]?.imageUrl || streak.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-[10px] object-cover" />
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-baseline justify-between gap-2">
+                                <span className="truncate text-sm font-semibold text-white">{streak.title}</span>
+                                <span className="shrink-0 text-xs tabular-nums text-faint">Day {next - 1}</span>
                               </span>
-                            </div>
-                          </div>
-                          {selectedStreakId === streak.id && (
-                            <div className="h-2 w-2 bg-flame rounded-full" />
-                          )}
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-
-                {selectedStreakId && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="continue-description">
-                        Day {(activeStreaks.find(s => s.id === selectedStreakId)?.streakDays?.length || 0) + 1} Description
-                      </Label>
-                      <Textarea
-                        id="continue-description"
-                        placeholder="What did you accomplish today?"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        rows={3}
-                       
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="continue-media">Media</Label>
-                      <div>
-                        <label className="block">
-                          <Input
-                            type="file"
-                            accept="image/*,video/*"
-                            onChange={handleFileUpload}
-                            disabled={isUploading}
-                            className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-flame file:text-white file:cursor-pointer hover:file:bg-flame"
-                          />
-                        </label>
-                        <p className="text-xs text-body mt-2">
-                          {isUploading ? (
-                            <span className="flex items-center gap-2">
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              Uploading {mediaType}...
+                              <StreakChain days={selected ? next : next - 1} activeIndex={selected ? next - 1 : undefined} className="mt-2" />
                             </span>
-                          ) : (
-                            'Upload an image (max 5MB) or video (max 50MB)'
-                          )}
-                        </p>
-                      </div>
-                      {imageUrl && (
-                        <div className="mt-2 rounded-lg overflow-hidden border border-rule bg-black">
-                          {mediaType === 'video' ? (
-                            <video src={imageUrl} className="w-full h-48 object-contain" controls />
-                          ) : (
-                            <img src={imageUrl} alt="Preview" className="w-full h-48 object-cover" />
-                          )}
-                        </div>
-                      )}
+                          </button>
+                        );
+                      })}
                     </div>
-                  </>
-                )}
+                  </fieldset>
 
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button 
-                    onClick={handleAddToStreak}
-                    disabled={isUploading || !selectedStreakId || !description || !imageUrl}
-                    className="bg-white text-black hover:bg-[#e6e3df]"
-                  >
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Add Day
-                  </Button>
-                </div>
-              </>
-            )}
+                  {selectedStreak && (
+                    <>
+                      {mediaPicker("continue-media")}
+                      <div className="space-y-2">
+                        <Label htmlFor="continue-description" className="text-sm text-white">Day {nextDayOf(selectedStreak)}: what did you do today?</Label>
+                        <Textarea id="continue-description" placeholder="What did you accomplish today?" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={areaClass} />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-rule px-6 py-4">
+              <span className="hidden text-xs text-faint sm:block">
+                {selectedStreak ? `Adds day ${nextDayOf(selectedStreak)} to ${selectedStreak.title}` : "Pick a streak to continue"}
+              </span>
+              <div className="ml-auto flex gap-2">
+                <Button variant="ghost" onClick={() => setOpen(false)} className="text-muted-text">Cancel</Button>
+                <Button onClick={handleAddToStreak} disabled={isUploading || !selectedStreakId || !description || !imageUrl}>
+                  {selectedStreak ? `Add day ${nextDayOf(selectedStreak)}` : "Add day"}
+                </Button>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>
