@@ -175,51 +175,15 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
     setShowBackingDialog(true);
   };
 
-  const stats = [
-    {
-      icon: Flame,
-      label: "Total Streaks",
-      value: user.totalStreaks,
-    },
-    {
-      icon: Trophy,
-      label: "Longest Streak",
-      value: `${user.longestStreak} days`,
-    },
-    {
-      icon: Award,
-      label: "Active Streaks",
-      value: user.activeStreaks,
-    },
-  ];
+  const plural = (n: number, word: string) => `${word}${n === 1 ? "" : "s"}`;
+  const active = Number(user.activeStreaks) || 0;
+  const longest = Number(user.longestStreak) || 0;
+  const total = Number(user.totalStreaks) || 0;
 
-  return (
-    <div className="space-y-[14px]">
-      {/* Profile Header */}
-      <Card className="p-[22px] gap-0 bg-surface">
-        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-          <Avatar className="h-20 w-20 sm:h-24 sm:w-24 flex-shrink-0">
-            <img src={user.avatar} alt={user.name} className="object-cover" />
-          </Avatar>
-          
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-2">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <div className="flex flex-col">
-                    <h1 className="text-lg font-semibold text-white">{user.alias || user.name}</h1>
-                    {user.alias && user.alias !== user.name && (
-                      <p className="text-muted-text text-sm">{user.name}</p>
-                    )}
-                  </div>
-                  {!user.isPublic && user.isPublic !== undefined && (
-                    <Badge variant="secondary" className="gap-1 text-xs">
-                      <Lock className="h-3 w-3" />
-                      Private
-                    </Badge>
-                  )}
-                  {!isOwnProfile && (
-                    <div className="ml-2 flex items-center gap-2">
+  const actionsBlock = isOwnProfile ? (
+    onUpdateProfile && <EditProfileDialog user={user} onUpdateProfile={onUpdateProfile} accessToken={accessToken ?? undefined} />
+  ) : (
+    <div className="flex items-center gap-2">
                       {onBackToggle && (
                         <motion.button
                           onClick={() => onBackToggle(user.id)}
@@ -267,28 +231,129 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                           Message
                         </button>
                       )}
+    </div>
+  );
+
+  const counts = [
+    { full: "Active streaks", value: active, label: "active", short: "active", highlight: active > 0 },
+    { full: "Total streaks", value: total, label: plural(total, "streak"), short: plural(total, "streak") },
+    { full: "Longest streak", value: longest, label: `${plural(longest, "day")} best`, short: "best" },
+    { full: "Backers", value: backerCount, label: plural(backerCount, "backer"), short: plural(backerCount, "backer"), onClick: () => handleOpenBackingDialog('backers') },
+    { full: "Backing", value: backingCount, label: "backing", short: "backing", onClick: () => handleOpenBackingDialog('backing') },
+  ];
+
+  return (
+    <div className="space-y-[14px]">
+      {/* Profile header: photo, name and actions, one line of counts, then bio and links */}
+      <Card className="p-5 sm:p-7 gap-0 bg-surface">
+        <div className="flex items-center gap-5 sm:items-start sm:gap-8">
+          <div
+            className={`shrink-0 rounded-full p-[3px] ${active > 0 ? "bg-flame" : "bg-raised"}`}
+            title={active > 0 ? `${active} active ${plural(active, "streak")}` : undefined}
+          >
+            <div className="rounded-full bg-surface p-[3px]">
+              <img src={user.avatar} alt={user.name} className="h-[76px] w-[76px] rounded-full object-cover sm:h-[112px] sm:w-[112px]" />
+            </div>
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <h1 className="truncate text-xl font-semibold text-white">{user.alias || user.name}</h1>
+              {!user.isPublic && user.isPublic !== undefined && (
+                <Badge variant="secondary" className="gap-1 text-xs">
+                  <Lock className="h-3 w-3" />
+                  Private
+                </Badge>
+              )}
+              <div className="hidden sm:ml-auto sm:block">{actionsBlock}</div>
+            </div>
+
+            {/* Counts, Instagram-style: number first, then the word */}
+            <dl className="mt-3 hidden flex-wrap gap-x-6 gap-y-1.5 text-[15px] sm:flex">
+              {counts.map(item => {
+                const inner = (
+                  <>
+                    <dt className="sr-only">{item.full}</dt>
+                    <dd className={`font-semibold tabular-nums ${item.highlight ? "text-flame" : "text-white"}`}>{item.value}</dd>
+                    <span className="text-muted-text">{item.label}</span>
+                  </>
+                );
+                return item.onClick ? (
+                  <button key={item.full} onClick={item.onClick} className="flex gap-1.5 hover:opacity-80">{inner}</button>
+                ) : (
+                  <div key={item.full} className="flex gap-1.5">{inner}</div>
+                );
+              })}
+            </dl>
+
+            <div className="mt-3 hidden sm:block">
+              {user.alias && user.alias !== user.name && <p className="text-sm font-semibold text-white">{user.name}</p>}
+              <p className="text-[15px] leading-[22px] text-body">{user.bio || "No bio yet"}</p>
+                {user.websiteLinks && user.websiteLinks.length > 0 && (
+                    <div className="flex items-center gap-2 text-muted-text text-sm mt-1">
+                      <ExternalLink className="h-4 w-4" />
+                      <div className="flex items-center gap-1">
+                        <a 
+                          href={user.websiteLinks[0].startsWith('http') ? user.websiteLinks[0] : `https://${user.websiteLinks[0]}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-white underline underline-offset-4 decoration-[#6a6460] hover:decoration-white"
+                        >
+                          {user.websiteLinks[0].replace(/^https?:\/\//, '')}
+                        </a>
+                        {user.websiteLinks.length > 1 && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button className="text-muted-text hover:text-white transition-colors cursor-pointer ml-1">
+                                and {user.websiteLinks.length - 1} other{user.websiteLinks.length - 1 > 1 ? 's' : ''}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 bg-surface border-rule text-white">
+                              <div className="space-y-2">
+                                <h4 className="font-medium mb-3">All Links</h4>
+                                {user.websiteLinks.map((link, index) => (
+                                  <a
+                                    key={index}
+                                    href={link.startsWith('http') ? link : `https://${link}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 text-white underline underline-offset-4 decoration-[#6a6460] hover:decoration-white text-sm"
+                                  >
+                                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                                    <span className="truncate">{link.replace(/^https?:\/\//, '')}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </div>
                     </div>
                   )}
-                </div>
-                
-                {/* Backing/Backer Counts - Instagram style */}
-                <div className="flex items-center gap-4 mb-2">
-                    <button 
-                      onClick={() => handleOpenBackingDialog('backers')}
-                      className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
-                    >
-                      <span className="text-white">{backerCount}</span>
-                      <span className="text-muted-text text-sm">{backerCount === 1 ? 'backer' : 'backers'}</span>
-                    </button>
-                    <button 
-                      onClick={() => handleOpenBackingDialog('backing')}
-                      className="flex items-center gap-1 hover:opacity-80 transition-opacity cursor-pointer"
-                    >
-                      <span className="text-white">{backingCount}</span>
-                      <span className="text-muted-text text-sm">backing</span>
-                    </button>
-                </div>
+            </div>
+          </div>
+        </div>
 
+        {/* Phones: counts in five even columns, then name, bio, links and actions */}
+        <dl className="mt-5 grid grid-cols-5 text-center sm:hidden">
+          {counts.map(item => {
+            const inner = (
+              <>
+                <dt className="sr-only">{item.full}</dt>
+                <dd className={`text-[17px] font-semibold leading-6 tabular-nums ${item.highlight ? "text-flame" : "text-white"}`}>{item.value}</dd>
+                <span className="block text-xs text-muted-text">{item.short}</span>
+              </>
+            );
+            return item.onClick ? (
+              <button key={item.full} onClick={item.onClick} className="hover:opacity-80">{inner}</button>
+            ) : (
+              <div key={item.full}>{inner}</div>
+            );
+          })}
+        </dl>
+        <div className="mt-4 sm:hidden">
+          {user.alias && user.alias !== user.name && <p className="text-sm font-semibold text-white">{user.name}</p>}
+          <p className="text-[15px] leading-[22px] text-body">{user.bio || "No bio yet"}</p>
                 {user.websiteLinks && user.websiteLinks.length > 0 && (
                   <div className="flex items-center gap-2 text-muted-text text-sm mt-1">
                     <ExternalLink className="h-4 w-4" />
@@ -330,23 +395,7 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
                     </div>
                   </div>
                 )}
-              </div>
-              {isOwnProfile && onUpdateProfile && (
-                <EditProfileDialog user={user} onUpdateProfile={onUpdateProfile} accessToken={accessToken ?? undefined} />
-              )}
-            </div>
-            <p className="text-body mb-4">{user.bio || "No bio yet"}</p>
-            
-            {/* Stats Grid */}
-            <div className="grid grid-cols-3">
-              {stats.map((stat, index) => (
-                <div key={stat.label} className={index === 0 ? "pr-4" : "border-l border-rule px-4"}>
-                  <div className="text-[13px] text-muted-text">{stat.label}</div>
-                  <div className={`mt-0.5 text-2xl font-medium tabular-nums ${index === 0 && Number(user.totalStreaks) > 0 ? "text-flame" : "text-white"}`}>{stat.value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <div className="mt-4 [&_button]:w-full [&>div]:grid [&>div]:grid-cols-2">{actionsBlock}</div>
         </div>
       </Card>
 
