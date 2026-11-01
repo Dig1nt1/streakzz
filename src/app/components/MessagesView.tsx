@@ -687,16 +687,16 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
     <>
     <div className="h-[calc(100vh-120px)] flex">
       {/* Conversations List - Narrow Sidebar */}
-      <div className="w-80 border-r border-white/10 flex flex-col bg-black/60 backdrop-blur-md rounded-[5px] p-[0px] mx-[5px] my-[0px]">
-        <div className="p-4 border-b border-white/10">
-          <h2 className="text-white mb-3">Messages</h2>
+      <div className="w-80 border-r border-rule flex flex-col bg-surface rounded-[5px] p-[0px] mx-[5px] my-[0px]">
+        <div className="p-4 border-b border-rule">
+          <h1 className="mb-3 text-xl font-semibold leading-7 text-white">Messages</h1>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-text" />
             <Input
               placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-gray-400"
+              className="pl-9 bg-raised border-rule text-white placeholder:text-muted-text"
             />
           </div>
         </div>
@@ -719,8 +719,8 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                       userName: displayName,
                       userAvatar: displayAvatar,
                     })}
-                    className={`w-full p-3 flex items-center gap-3 hover:bg-white/5 transition-colors text-left ${
-                      selectedConversation?.id === conversation.id ? "bg-white/10" : ""
+                    className={`w-full p-3 flex items-center gap-3 hover:bg-raised transition-colors text-left ${
+                      selectedConversation?.id === conversation.id ? "bg-raised" : ""
                     }`}
                   >
                     <Avatar className="h-12 w-12 flex-shrink-0">
@@ -732,10 +732,10 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-white truncate text-sm">{displayName}</h3>
-                      <p className="text-xs text-gray-400 truncate">{conversation.lastMessage}</p>
+                      <p className="text-xs text-muted-text truncate">{conversation.lastMessage}</p>
                     </div>
                     {conversation.unread > 0 && (
-                      <div className="h-2 w-2 bg-orange-500 rounded-full flex-shrink-0" />
+                      <div className="h-2 w-2 bg-flame rounded-full flex-shrink-0" />
                     )}
                   </button>
                 );
@@ -745,11 +745,11 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
       </div>
 
       {/* Messages Thread */}
-      <div className="flex-1 flex flex-col bg-black/20 backdrop-blur-sm min-h-0 rounded-[5px]">
+      <div className="flex-1 flex flex-col bg-surface min-h-0 rounded-[20px]">
             {selectedConversation ? (
               <>
                 {/* Chat Header */}
-                <div className="p-4 border-b border-white/10 flex items-center justify-between flex-shrink-0">
+                <div className="p-4 border-b border-rule flex items-center justify-between flex-shrink-0">
                   {(() => {
                     // derive otherId robustly: prefer split from key, fallback to stored userId
                     const keyParts = selectedConversation.id?.split(":");
@@ -763,30 +763,30 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                     return (
                       <div className="flex items-center gap-3">
                         <Avatar
-                          className="h-10 w-10 cursor-pointer hover:ring-2 hover:ring-orange-500 transition-all"
+                          className="h-10 w-10 cursor-pointer"
                           onClick={goToProfile}
                         >
                           <img src={headerAvatar} alt={headerName} className="object-cover" />
                         </Avatar>
                         <div>
                           <h3
-                            className="text-white cursor-pointer hover:text-orange-500 transition-colors"
+                            className="text-white cursor-pointer hover:text-flame transition-colors"
                             onClick={goToProfile}
                           >
                             {headerName}
                           </h3>
-                          <p className="text-xs text-gray-400">Active now</p>
+                          <p className="text-xs text-muted-text">Active now</p>
                         </div>
                       </div>
                     );
                   })()}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                      <Button variant="ghost" size="sm" className="text-muted-text hover:text-white">
                         <MoreVertical className="h-5 w-5" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-black/90 backdrop-blur-sm border-white/10">
+                    <DropdownMenuContent align="end" className="bg-surface border-rule">
                       <DropdownMenuItem
                         onClick={() => setShowDeleteDialog(true)}
                         className="text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
@@ -830,8 +830,8 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                                 <div
                                   className={`rounded-2xl px-4 py-2 ${
                                     isCurrentUser
-                                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white"
-                                      : "bg-white/10 text-white"
+                                      ? "bg-[#f2efe9] text-[#0e0d0c]"
+                                      : "bg-raised text-white"
                                   }`}
                                 >
                                   {message.mediaUrl && (
@@ -856,11 +856,11 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                                 </div>
                               </div>
                               <div className={`flex items-center gap-2 mt-1 ${isCurrentUser ? "flex-row-reverse" : ""}`}>
-                                <p className={`text-xs text-gray-400`}>
+                                <p className={`text-xs text-muted-text`}>
                                   {message.timestamp}
                                 </p>
                                 {isCurrentUser && canDeleteMessage(message) && (
-                                  <div className="flex items-center gap-1 text-xs text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="flex items-center gap-1 text-xs text-faint opacity-0 group-hover:opacity-100 transition-opacity">
                                     <Clock className="h-3 w-3" />
                                     <span>{getTimeRemaining(message)}</span>
                                   </div>
@@ -878,7 +878,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                                         exit={{ scale: 0 }}
                                         transition={{ type: "spring", stiffness: 500, damping: 25 }}
                                       >
-                                        <Flame className="h-4 w-4 fill-orange-500 text-orange-500" />
+                                        <Flame className="h-4 w-4 fill-flame text-flame" />
                                       </motion.div>
                                     ) : (
                                       <motion.div
@@ -887,7 +887,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                                         animate={{ scale: 1 }}
                                         exit={{ scale: 0 }}
                                       >
-                                        <Flame className="h-4 w-4 text-gray-400 group-hover:text-orange-400" />
+                                        <Flame className="h-4 w-4 text-muted-text group-hover:text-flame" />
                                       </motion.div>
                                     )}
                                   </AnimatePresence>
@@ -896,7 +896,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                                       key={message.likes}
                                       initial={{ scale: 1.3 }}
                                       animate={{ scale: 1 }}
-                                      className={`text-xs ${message.isLiked ? 'text-orange-500' : 'text-gray-400'}`}
+                                      className={`text-xs ${message.isLiked ? 'text-flame' : 'text-muted-text'}`}
                                     >
                                       {message.likes}
                                     </motion.span>
@@ -912,7 +912,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                 </ScrollArea>
 
                 {/* Message Input */}
-                <div className="p-4 border-t border-white/10 flex-shrink-0">
+                <div className="p-4 border-t border-rule flex-shrink-0">
                   {mediaPreview && (
                     <div className="mb-3 relative inline-block">
                       <div className="relative">
@@ -948,7 +948,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                     <Button
                       onClick={() => fileInputRef.current?.click()}
                       variant="outline"
-                      className="bg-white/5 border-white/10 hover:bg-white/10 text-white"
+                      className="bg-raised border-rule hover:bg-raised text-white"
                     >
                       <ImagePlus className="h-4 w-4" />
                     </Button>
@@ -957,12 +957,12 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                      className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-gray-400"
+                      className="flex-1 bg-raised border-rule text-white placeholder:text-muted-text"
                     />
                     <Button
                       onClick={handleSendMessage}
                       disabled={!messageText.trim() && !selectedMedia}
-                      className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                      className="bg-white text-black hover:bg-[#e6e3df]"
                     >
                       <Send className="h-4 w-4" />
                     </Button>
@@ -971,10 +971,10 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-6">
-                <MessageSquare className="h-16 w-16 text-orange-500" />
+                <MessageSquare className="h-10 w-10 text-faint" strokeWidth={1.5} />
                 <div className="text-center">
-                  <h3 className="text-white text-xl mb-2">Your messages</h3>
-                  <p className="text-gray-400 text-sm mb-4">Select a conversation to start messaging</p>
+                  <h3 className="text-white text-base font-semibold mb-1">Your messages</h3>
+                  <p className="text-muted-text text-sm mb-4">Select a conversation to start messaging</p>
                   <Button
                     onClick={() => {
                       if (conversations.length > 0) {
@@ -984,7 +984,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                         setSelectedConversation({ ...conv, userId: otherId, userName: resolved?.name || conv.userName || "User", userAvatar: resolved?.avatar || conv.userAvatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${otherId}` });
                       }
                     }}
-                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                    className="bg-white text-black hover:bg-[#e6e3df]"
                   >
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Start Messaging
@@ -997,20 +997,20 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
 
     {/* Delete Confirmation Dialog */}
     <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-      <AlertDialogContent className="bg-black/95 backdrop-blur-sm border-white/10">
+      <AlertDialogContent className="bg-surface border-rule">
         <AlertDialogHeader>
           <AlertDialogTitle className="text-white">Delete conversation?</AlertDialogTitle>
-          <AlertDialogDescription className="text-gray-400">
+          <AlertDialogDescription className="text-muted-text">
             This will permanently delete your conversation with {selectedConversation?.userName}. This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel className="bg-white/10 text-white hover:bg-white/20 border-white/10">
+          <AlertDialogCancel className="bg-raised text-white hover:bg-[#363330] border-rule">
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDeleteConversation}
-            className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+            className="bg-destructive text-white hover:bg-destructive/90"
           >
             Delete
           </AlertDialogAction>
@@ -1025,7 +1025,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-surface p-4"
           onClick={() => setEnlargedImage(null)}
         >
           <motion.div

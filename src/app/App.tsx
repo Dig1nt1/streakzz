@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Home, Trophy, User, Flame, MessageSquare, Swords, Radio } from "lucide-react";
+import { Home, Trophy, User, Send, Swords, Radio, Plus, Menu } from "lucide-react";
 import { FeedView } from "./components/FeedView";
 import { LeaderboardView } from "./components/LeaderboardView";
 import { ProfileView } from "./components/ProfileView";
@@ -19,7 +19,6 @@ import { projectId, publicAnonKey } from "./utils/supabase/info";
 import streakzLogo from "figma:asset/0b5993ed4ace0b1938a06682c91bcf77a5cd9292.png";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
-import backgroundTexture from "figma:asset/6128107800268459dda51dfef463f0e68d789714.png";
 import { getNewlyUnlockedAchievements, getUnlockedAchievementIds } from "./utils/achievements";
 
 // Mock data
@@ -405,7 +404,7 @@ export default function App() {
             name: updatedUser.name || authState.userName || 'User',
             alias: updatedUser.alias,
             avatar: updatedUser.avatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${authState.userId}`,
-            bio: updatedUser.bio || 'Streakz member 🔥',
+            bio: updatedUser.bio || 'Streakz member',
             isPublic: updatedUser.isPublic ?? true,
             websiteLinks: updatedUser.websiteLinks || [],
             achievements: updatedUser.achievements || [],
@@ -416,7 +415,7 @@ export default function App() {
             const achievementName = achievementId.split('-').map(word => 
               word.charAt(0).toUpperCase() + word.slice(1)
             ).join(' ');
-            toast.success(`Achievement Unlocked: ${achievementName}! 🏆`);
+            toast.success(`Achievement unlocked: ${achievementName}`);
           });
         }
       }
@@ -584,7 +583,7 @@ export default function App() {
             name: profile.name || authState.userName || 'User',
             alias: profile.alias,
             avatar: profile.avatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${authState.userId}`,
-            bio: profile.bio || 'Streakz member 🔥',
+            bio: profile.bio || 'Streakz member',
             isPublic: true,
             websiteLinks: profile.websiteLinks || [],
             achievements: profile.achievements || [],
@@ -877,15 +876,7 @@ export default function App() {
   // Show loading state while checking auth
   if (isCheckingAuth) {
     return (
-      <div 
-        className="min-h-screen flex items-center justify-center"
-        style={{
-          backgroundImage: `url(${backgroundTexture})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed',
-        }}
-      >
+      <div className="min-h-screen flex items-center justify-center bg-ground">
         <div className="text-center">
           <img 
             src={streakzLogo} 
@@ -912,7 +903,7 @@ export default function App() {
     id: authState.userId!,
     name: userProfile?.name || authState.userName!,
     avatar: userProfile?.avatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${authState.userId}`,
-    bio: userProfile?.bio || "Streakz member 🔥",
+    bio: userProfile?.bio || "Streakz member",
     joined: "October 2024",
     totalStreaks: 0,
     longestStreak: 0,
@@ -1394,7 +1385,7 @@ export default function App() {
         name: viewingUserProfile.name,
         alias: viewingUserProfile.alias,
         avatar: viewingUserProfile.avatar,
-        bio: viewingUserProfile.bio || "Streakz member 🔥",
+        bio: viewingUserProfile.bio || "Streakz member",
         joined: viewingUserProfile.joined || "2024",
         totalStreaks,
         longestStreak,
@@ -1419,7 +1410,7 @@ export default function App() {
         id: serverUser.id,
         name: serverUser.name,
         avatar: serverUser.avatar,
-        bio: "Streakz member 🔥",
+        bio: "Streakz member",
         joined: "2024",
         totalStreaks,
         longestStreak,
@@ -1442,7 +1433,7 @@ export default function App() {
         id: viewingUserId,
         name: userPost.userName,
         avatar: userPost.userAvatar,
-        bio: "Streakz member 🔥",
+        bio: "Streakz member",
         joined: "2024",
         totalStreaks,
         longestStreak,
@@ -1513,29 +1504,115 @@ export default function App() {
     return <DebugAliasManager />;
   }
 
-  return (
-    <div 
-      className="min-h-screen"
-      style={{
-        backgroundImage: `url(${backgroundTexture})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed',
-      }}
-    >
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-black/60 backdrop-blur-lg">
-        <div className="container mx-auto px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <img 
-              src={streakzLogo} 
-              alt="Streakz Logo" 
-              className="h-8 w-8 sm:h-10 sm:w-10"
-            />
-            <h1 className="text-[rgb(245,100,29)] hidden sm:block">Streakz</h1>
-          </div>
+  const navItems: Array<{ view: View; label: string; short: string; icon: typeof Home }> = [
+    { view: "feed", label: "Feed", short: "Feed", icon: Home },
+    { view: "arena", label: "Arena", short: "Arena", icon: Swords },
+    { view: "sync", label: "Sync", short: "Sync", icon: Radio },
+    { view: "leaderboard", label: "Leaderboard", short: "Board", icon: Trophy },
+    { view: "messages", label: "Messages", short: "Chat", icon: Send },
+    { view: "profile", label: "Profile", short: "Profile", icon: User },
+  ];
+  const goTo = (view: View) => {
+    if (view === "profile") setViewingUserId(null);
+    setCurrentView(view);
+  };
+  // Instagram-style rail order; Post streak and Profile follow these.
+  const railItems = navItems.filter(item => item.view !== "profile");
+  const railLabel =
+    "pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-raised px-2.5 py-1.5 text-[13px] font-medium text-white opacity-0 shadow-[0_8px_24px_rgba(0,0,0,.45)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100";
+  const showRail = currentView === "feed" || currentView === "leaderboard" || currentView === "profile";
+  const trendingCategories = [
+    { name: "Fitness", active: 1200 },
+    { name: "Gaming", active: 987 },
+    { name: "Goals", active: 856 },
+    { name: "Hobbies", active: 654 },
+  ];
 
-          <div className="flex items-center gap-1 sm:gap-2">
+  return (
+    <div className="min-h-screen bg-ground">
+      {/* Desktop: an icon rail on the left, Instagram-style; each name appears on hover or focus */}
+      <aside
+        aria-label="Main"
+        className="fixed inset-y-0 left-0 z-50 hidden w-[72px] flex-col items-center border-r border-rule bg-ground py-6 lg:flex"
+      >
+        <button onClick={() => goTo("feed")} aria-label="Streakz home" className="group relative grid h-12 w-12 place-items-center rounded-xl hover:bg-raised">
+          <img src={streakzLogo} alt="" className="h-8 w-8" />
+          <span className={railLabel}>Streakz</span>
+        </button>
+
+        <nav className="mt-auto mb-auto flex flex-col items-center gap-2">
+          {railItems.map(item => {
+            const Icon = item.icon;
+            const active = currentView === item.view;
+            return (
+              <button
+                key={item.view}
+                onClick={() => goTo(item.view)}
+                aria-label={item.label}
+                aria-current={active ? "page" : undefined}
+                className={`group relative grid h-12 w-12 place-items-center rounded-xl transition-colors hover:bg-raised ${active ? "text-white" : "text-[#d6d3cf] hover:text-white"}`}
+              >
+                <Icon className="h-6 w-6" strokeWidth={active ? 2.6 : 1.8} />
+                <span className={railLabel}>{item.label}</span>
+              </button>
+            );
+          })}
+
+          <CreatePostDialog
+            accessToken={authState.accessToken || undefined}
+            onCreatePost={handleCreatePost}
+            onAddToStreak={handleAddToStreak}
+            userPosts={posts}
+            currentUserId={authState.userId}
+            trigger={
+              <button aria-label="Post streak" className="group relative grid h-12 w-12 place-items-center rounded-xl text-[#d6d3cf] transition-colors hover:bg-raised hover:text-white">
+                <Plus className="h-6 w-6" strokeWidth={1.8} />
+                <span className={railLabel}>Post streak</span>
+              </button>
+            }
+          />
+
+          <button
+            onClick={() => goTo("profile")}
+            aria-label="Profile"
+            aria-current={currentView === "profile" && !viewingUserId ? "page" : undefined}
+            className="group relative grid h-12 w-12 place-items-center rounded-xl hover:bg-raised"
+          >
+            <img
+              src={currentUserWithStats.avatar}
+              alt=""
+              className={`h-7 w-7 rounded-full object-cover ${currentView === "profile" && !viewingUserId ? "ring-2 ring-white ring-offset-2 ring-offset-ground" : ""}`}
+            />
+            <span className={railLabel}>Profile</span>
+          </button>
+        </nav>
+
+        <UserMenu
+          userName={currentUserWithStats.name}
+          userAvatar={currentUserWithStats.avatar}
+          onLogout={handleLogout}
+          onViewProfile={() => goTo("profile")}
+          onViewHelpSupport={() => setCurrentView("help")}
+          onDeleteAccount={handleDeleteAccount}
+          side="right"
+          align="end"
+          trigger={
+            <button aria-label="More" className="group relative grid h-12 w-12 place-items-center rounded-xl text-[#d6d3cf] transition-colors hover:bg-raised hover:text-white">
+              <Menu className="h-6 w-6" strokeWidth={1.8} />
+              <span className={railLabel}>More</span>
+            </button>
+          }
+        />
+      </aside>
+
+      {/* Phone and tablet: a slim top bar; the destinations live in the bottom bar */}
+      <header className="sticky top-0 z-50 border-b border-rule bg-ground lg:hidden">
+        <div className="px-4 sm:px-6 h-14 flex items-center gap-3">
+          <button onClick={() => goTo("feed")} className="flex items-center gap-2 shrink-0" aria-label="Streakz home">
+            <img src={streakzLogo} alt="" className="h-7 w-7" />
+            <span className="text-[17px] font-semibold tracking-tight text-white">Streakz</span>
+          </button>
+          <div className="ml-auto flex items-center gap-2">
             <CreatePostDialog 
               accessToken={authState.accessToken || undefined}
               onCreatePost={handleCreatePost}
@@ -1547,10 +1624,7 @@ export default function App() {
               userName={currentUserWithStats.name}
               userAvatar={currentUserWithStats.avatar}
               onLogout={handleLogout}
-              onViewProfile={() => {
-                setViewingUserId(null);
-                setCurrentView("profile");
-              }}
+              onViewProfile={() => goTo("profile")}
               onViewHelpSupport={() => {
                 setCurrentView("help");
               }}
@@ -1560,67 +1634,10 @@ export default function App() {
         </div>
       </header>
 
-      <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 pb-20 lg:pb-6">
-        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-          {/* Desktop Sidebar Navigation */}
-          <aside className="hidden lg:block lg:w-64 flex-shrink-0">
-            <nav className="sticky top-20 space-y-2">
-              <Button
-                variant={currentView === "feed" ? "secondary" : "ghost"}
-                className="w-full justify-start gap-3 text-[rgb(255,255,255)] hover:text-black" 
-                onClick={() => setCurrentView("feed")}
-              >
-                <Home className="h-5 w-5" />
-                Feed
-              </Button>
-              <Button
-                variant={currentView === "leaderboard" ? "secondary" : "ghost"}
-                className="w-full justify-start gap-3 text-white hover:text-black" 
-                onClick={() => setCurrentView("leaderboard")}
-              >
-                <Trophy className="h-5 w-5" />
-                Leaderboard
-              </Button>
-              <Button
-                variant={currentView === "messages" ? "secondary" : "ghost"}
-                className="w-full justify-start gap-3 text-white hover:text-black"
-                onClick={() => setCurrentView("messages")}
-              >
-                <MessageSquare className="h-5 w-5" />
-                Messages
-              </Button>
-              <Button
-                variant={currentView === "arena" ? "secondary" : "ghost"}
-                className="w-full justify-start gap-3 text-white hover:text-black"
-                onClick={() => setCurrentView("arena")}
-              >
-                <Swords className="h-5 w-5" />
-                Arena
-              </Button>
-              <Button
-                variant={currentView === "sync" ? "secondary" : "ghost"}
-                className="w-full justify-start gap-3 text-white hover:text-black"
-                onClick={() => setCurrentView("sync")}
-              >
-                <Radio className="h-5 w-5" />
-                Sync
-              </Button>
-              <Button
-                variant={currentView === "profile" ? "secondary" : "ghost"}
-                className="w-full justify-start gap-3 text-white hover:text-black"
-                onClick={() => {
-                  setViewingUserId(null);
-                  setCurrentView("profile");
-                }}
-              >
-                <User className="h-5 w-5" />
-                Profile
-              </Button>
-            </nav>
-          </aside>
-
-          {/* Main Content */}
-          <main className={`flex-1 w-full ${currentView === "messages" || currentView === "arena" ? "" : "lg:max-w-2xl"}`}>
+      <div className="lg:pl-[72px]">
+      <div className="mx-auto max-w-[1120px] px-4 sm:px-6 pt-6 pb-24 lg:pt-8 lg:pb-10">
+        <div className={showRail ? "grid items-start gap-[14px] xl:grid-cols-[minmax(0,1fr)_320px]" : ""}>
+          <main className="min-w-0">
             {currentView === "feed" && (
               <FeedView
                 posts={posts}
@@ -1720,146 +1737,76 @@ export default function App() {
             )}
           </main>
 
-          {/* Right Sidebar - Trending */}
-          {currentView !== "messages" && currentView !== "arena" && currentView !== "sync" && currentView !== "help" && (
-            <aside className="hidden xl:block w-80 flex-shrink-0">
-              <div className="sticky top-20 space-y-6">
-                <div className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-md p-4">
-                  <h3 className="text-white mb-4">Trending Categories</h3>
-                  <div className="space-y-3">
-                    {[
-                      { name: "Fitness", count: "1.2k active", color: "from-green-500 to-emerald-500" },
-                      { name: "Gaming", count: "987 active", color: "from-purple-500 to-pink-500" },
-                      { name: "Goals", count: "856 active", color: "from-rose-500 to-red-500" },
-                      { name: "Hobbies", count: "654 active", color: "from-blue-500 to-cyan-500" },
-                    ].map((category) => (
-                      <div key={category.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
-                        <div className={`h-2 w-2 rounded-full bg-gradient-to-r ${category.color}`} />
-                        <div className="flex-1">
-                          <p className="text-sm text-white">{category.name}</p>
-                          <p className="text-xs text-gray-400">{category.count}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+          {/* Right rail: who leads this week, and where people are active */}
+          {showRail && (
+            <aside className="hidden xl:flex flex-col gap-[14px] sticky top-20">
+              <section className="rounded-[20px] bg-surface p-[22px]">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-semibold text-white">Top streakers this week</h2>
+                  <button onClick={() => goTo("leaderboard")} className="text-[13px] font-medium text-muted-text hover:text-white">View board</button>
                 </div>
+                {mockUsers.slice(0, 3).map((user, index) => (
+                  <button
+                    key={user.id}
+                    className="grid w-full grid-cols-[18px_32px_minmax(0,1fr)_auto] items-center gap-2.5 h-11 -mx-2 px-2 rounded-[10px] text-left hover:bg-raised transition-colors"
+                    style={{ width: "calc(100% + 16px)" }}
+                    onClick={() => handleUserClick(user.id)}
+                  >
+                    <span className="text-faint text-sm tabular-nums">{index + 1}</span>
+                    <img src={user.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
+                    <span className="truncate text-sm font-medium text-white">{user.alias || user.name}</span>
+                    <span className="text-sm text-white tabular-nums">{user.totalStreaks}<span className="ml-1 text-faint">streaks</span></span>
+                  </button>
+                ))}
+              </section>
 
-                <div className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-md p-4">
-                  <h3 className="text-white mb-4">Top Streakers This Week</h3>
-                  <div className="space-y-3">
-                    {mockUsers.slice(0, 3).map((user, index) => (
-                      <div 
-                        key={user.id} 
-                        className="flex items-center gap-3 cursor-pointer hover:bg-white/5 rounded-lg p-2 -m-2 transition-colors"
-                        onClick={() => handleUserClick(user.id)}
-                      >
-                        <span className="text-gray-400 text-sm w-4">{index + 1}</span>
-                        <img 
-                          src={user.avatar} 
-                          alt={user.name}
-                          className="h-8 w-8 rounded-full object-cover ring-2 ring-transparent hover:ring-orange-500 transition-all"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white truncate hover:text-orange-500 transition-colors">{user.alias || user.name}</p>
-                        </div>
-                        <div className="flex items-center gap-1 text-orange-500">
-                          <Flame className="h-3 w-3" />
-                          <span className="text-xs">{user.totalStreaks}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              <section className="rounded-[20px] bg-surface p-[22px]">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-base font-semibold text-white">Trending categories</h2>
+                  <span className="text-xs text-faint">Active this week</span>
                 </div>
-              </div>
+                {trendingCategories.map((category, index) => (
+                  <div key={category.name} className="py-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium text-white">{category.name}</span>
+                      <span className="text-muted-text tabular-nums">{category.active.toLocaleString("en-US")}</span>
+                    </div>
+                    <div className="mt-2 h-0.5 bg-raised">
+                      <div
+                        className={index === 0 ? "h-full bg-white" : "h-full bg-[#6b6b6b]"}
+                        style={{ width: `${Math.round((category.active / trendingCategories[0].active) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </section>
             </aside>
           )}
         </div>
       </div>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-black/80 backdrop-blur-lg">
-        <div className="flex items-center justify-around h-16 px-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`flex flex-col items-center gap-1 h-14 px-3 ${
-              currentView === "feed" 
-                ? "text-[rgb(245,100,29)]" 
-                : "text-white/70 hover:text-white"
-            }`}
-            onClick={() => setCurrentView("feed")}
-          >
-            <Home className="h-5 w-5" />
-            <span className="text-xs">Feed</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`flex flex-col items-center gap-1 h-14 px-2 ${
-              currentView === "arena" 
-                ? "text-[rgb(245,100,29)]" 
-                : "text-white/70 hover:text-white"
-            }`}
-            onClick={() => setCurrentView("arena")}
-          >
-            <Swords className="h-5 w-5" />
-            <span className="text-xs">Arena</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`flex flex-col items-center gap-1 h-14 px-2 ${
-              currentView === "sync" 
-                ? "text-[rgb(245,100,29)]" 
-                : "text-white/70 hover:text-white"
-            }`}
-            onClick={() => setCurrentView("sync")}
-          >
-            <Radio className="h-5 w-5" />
-            <span className="text-xs">Sync</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`flex flex-col items-center gap-1 h-14 px-2 ${
-              currentView === "leaderboard" 
-                ? "text-[rgb(245,100,29)]" 
-                : "text-white/70 hover:text-white"
-            }`}
-            onClick={() => setCurrentView("leaderboard")}
-          >
-            <Trophy className="h-5 w-5" />
-            <span className="text-xs">Board</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`flex flex-col items-center gap-1 h-14 px-2 ${
-              currentView === "messages" 
-                ? "text-[rgb(245,100,29)]" 
-                : "text-white/70 hover:text-white"
-            }`}
-            onClick={() => setCurrentView("messages")}
-          >
-            <MessageSquare className="h-5 w-5" />
-            <span className="text-xs">Chat</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`flex flex-col items-center gap-1 h-14 px-2 ${
-              currentView === "profile" 
-                ? "text-[rgb(245,100,29)]" 
-                : "text-white/70 hover:text-white"
-            }`}
-            onClick={() => {
-              setViewingUserId(null);
-              setCurrentView("profile");
-            }}
-          >
-            <User className="h-5 w-5" />
-            <span className="text-xs">Profile</span>
-          </Button>
+      </div>
+
+      {/* Mobile bottom navigation */}
+      <nav aria-label="Main" className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-rule bg-ground">
+        <div className="grid grid-cols-6 h-16 px-1">
+          {navItems.map(item => {
+            const Icon = item.icon;
+            const active = currentView === item.view;
+            return (
+              <button
+                key={item.view}
+                onClick={() => goTo(item.view)}
+                aria-current={active ? "page" : undefined}
+                className={`flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors ${
+                  active ? "text-white" : "text-faint hover:text-white"
+                }`}
+              >
+                <Icon className="h-5 w-5" strokeWidth={1.75} />
+                {item.short}
+              </button>
+            );
+          })}
         </div>
       </nav>
 

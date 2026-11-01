@@ -47,13 +47,13 @@ export function JoinPrivateRoomDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[400px] bg-black/95 backdrop-blur-md border-white/10 text-white">
+      <DialogContent className="sm:max-w-[400px] bg-surface border-rule text-white">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Lock className="h-5 w-5 text-purple-500" />
+            <Lock className="h-5 w-5 text-white" />
             Private Room
           </DialogTitle>
-          <DialogDescription className="text-gray-400">
+          <DialogDescription className="text-muted-text">
             Enter password to join "{roomName}"
           </DialogDescription>
         </DialogHeader>
@@ -67,7 +67,7 @@ export function JoinPrivateRoomDialog({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter room password"
-              className="bg-black/40 border-white/10 text-white"
+              className="bg-surface border-rule text-white"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && password.trim()) {
                   handleJoin();
@@ -85,14 +85,14 @@ export function JoinPrivateRoomDialog({
               setPassword("");
               onOpenChange(false);
             }}
-            className="bg-black/40 border-white/10 text-white hover:bg-black/60"
+            className="bg-surface border-rule text-white hover:bg-raised"
           >
             Cancel
           </Button>
           <Button
             onClick={handleJoin}
             disabled={isJoining || !password.trim()}
-            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+            className="bg-white text-black hover:bg-[#e6e3df]"
           >
             {isJoining ? "Joining..." : "Join Room"}
           </Button>

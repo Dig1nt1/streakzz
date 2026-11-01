@@ -1,3 +1,4 @@
+import type React from "react";
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Button } from "./ui/button";
@@ -30,9 +31,11 @@ interface CreatePostDialogProps {
   }) => void;
   userPosts?: Post[];
   currentUserId?: string;
+  /** Replaces the default "Post Streak" button, e.g. with an icon in the side rail. */
+  trigger?: React.ReactNode;
 }
 
-export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, userPosts = [], currentUserId }: CreatePostDialogProps) {
+export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, userPosts = [], currentUserId, trigger }: CreatePostDialogProps) {
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState("");
   const [streakCount, setStreakCount] = useState("1");
@@ -147,12 +150,14 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600">
-          <Plus className="h-4 w-4" />
-          Post Streak
-        </Button>
+        {trigger ?? (
+          <Button className="gap-2 bg-white text-black hover:bg-[#e6e3df]">
+            <Plus className="h-4 w-4" />
+            Post Streak
+          </Button>
+        )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-black/90 border-white/10 text-white backdrop-blur-md">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-surface border-rule text-white">
         <DialogHeader>
           <DialogTitle>Share Your Streak</DialogTitle>
           <DialogDescription>
@@ -161,7 +166,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
         </DialogHeader>
 
         <Tabs defaultValue="new" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-white/10">
+          <TabsList className="grid w-full grid-cols-2 bg-ground">
             <TabsTrigger value="new">New Streak</TabsTrigger>
             <TabsTrigger value="continue">Continue Streak</TabsTrigger>
           </TabsList>
@@ -172,7 +177,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
               <Label htmlFor="category">Category</Label>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger id="category"
-                   className="bg-[rgba(255,255,255,0.1)] text-white border border-white/20 rounded-md">
+                   className="bg-[rgba(255,255,255,0.1)] text-white border border-rule rounded-md">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -230,10 +235,10 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                     accept="image/*,video/*"
                     onChange={handleFileUpload}
                     disabled={isUploading}
-                    className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-orange-500 file:text-white file:cursor-pointer hover:file:bg-orange-600 text-[rgb(0,0,0)]"
+                    className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-flame file:text-white file:cursor-pointer hover:file:bg-flame text-[rgb(0,0,0)]"
                   />
                 </label>
-                <p className="text-xs text-gray-300 mt-2">
+                <p className="text-xs text-body mt-2">
                   {isUploading ? (
                     <span className="flex items-center gap-2">
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -245,7 +250,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                 </p>
               </div>
               {imageUrl && (
-                <div className="mt-2 rounded-lg overflow-hidden border border-white/10 bg-black">
+                <div className="mt-2 rounded-lg overflow-hidden border border-rule bg-black">
                   {mediaType === 'video' ? (
                     <video src={imageUrl} className="w-full h-48 object-contain" controls />
                   ) : (
@@ -260,7 +265,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
               <Button 
                 onClick={handleSubmit} 
                 disabled={!category || !streakCount || !title || !description || !imageUrl}
-                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                className="bg-white text-black hover:bg-[#e6e3df]"
               >
                 Create Streak
               </Button>
@@ -271,8 +276,8 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
           <TabsContent value="continue" className="space-y-4 py-4">
             {activeStreaks.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-400">You don't have any active streaks yet.</p>
-                <p className="text-gray-400 text-sm mt-2">Create a new streak to get started!</p>
+                <p className="text-muted-text">You don't have any active streaks yet.</p>
+                <p className="text-muted-text text-sm mt-2">Create a new streak to get started!</p>
               </div>
             ) : (
               <>
@@ -285,8 +290,8 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                         onClick={() => setSelectedStreakId(streak.id)}
                         className={`p-3 cursor-pointer transition-all ${
                           selectedStreakId === streak.id
-                            ? 'bg-gradient-to-r from-orange-500/20 to-red-500/20 border-orange-500'
-                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                            ? 'bg-raised border-white'
+                            : 'bg-raised border-rule hover:bg-raised'
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -301,13 +306,13 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                               <Badge variant="outline" className="text-xs">
                                 {streak.category}
                               </Badge>
-                              <span className="text-xs text-gray-400">
+                              <span className="text-xs text-muted-text">
                                 Day {streak.streakDays?.length || 1}
                               </span>
                             </div>
                           </div>
                           {selectedStreakId === streak.id && (
-                            <div className="h-2 w-2 bg-orange-500 rounded-full" />
+                            <div className="h-2 w-2 bg-flame rounded-full" />
                           )}
                         </div>
                       </Card>
@@ -340,10 +345,10 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                             accept="image/*,video/*"
                             onChange={handleFileUpload}
                             disabled={isUploading}
-                            className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-orange-500 file:text-white file:cursor-pointer hover:file:bg-orange-600 text-[rgb(0,0,0)]"
+                            className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-flame file:text-white file:cursor-pointer hover:file:bg-flame text-[rgb(0,0,0)]"
                           />
                         </label>
-                        <p className="text-xs text-gray-300 mt-2">
+                        <p className="text-xs text-body mt-2">
                           {isUploading ? (
                             <span className="flex items-center gap-2">
                               <Loader2 className="h-3 w-3 animate-spin" />
@@ -355,7 +360,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                         </p>
                       </div>
                       {imageUrl && (
-                        <div className="mt-2 rounded-lg overflow-hidden border border-white/10 bg-black">
+                        <div className="mt-2 rounded-lg overflow-hidden border border-rule bg-black">
                           {mediaType === 'video' ? (
                             <video src={imageUrl} className="w-full h-48 object-contain" controls />
                           ) : (
@@ -372,7 +377,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                   <Button 
                     onClick={handleAddToStreak}
                     disabled={!selectedStreakId || !description || !imageUrl}
-                    className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+                    className="bg-white text-black hover:bg-[#e6e3df]"
                   >
                     <PlusCircle className="h-4 w-4 mr-2" />
                     Add Day

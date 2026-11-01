@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import React, { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "./ui/scroll-area";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "./ui/carousel";
+import { StreakChain } from "./StreakChain";
 
 interface MentionUser { id: string; name: string; avatar: string; }
 
@@ -87,19 +88,19 @@ function MentionInput({
         autoFocus={autoFocus}
       />
       {mentionQuery !== null && (
-        <div className="absolute bottom-full mb-1 left-0 w-60 bg-gray-900 border border-white/15 rounded-lg shadow-xl z-50 overflow-hidden">
+        <div className="absolute bottom-full mb-1 left-0 w-60 bg-raised border border-rule rounded-lg shadow-xl z-50 overflow-hidden">
           {filtered.length > 0 ? filtered.map((user, idx) => (
             <button
               key={user.id}
               type="button"
-              className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${idx === focusedIdx ? "bg-orange-500/20 text-white" : "text-gray-300 hover:bg-white/5"}`}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${idx === focusedIdx ? "bg-flame-tint text-white" : "text-body hover:bg-raised"}`}
               onMouseDown={(e) => { e.preventDefault(); insertMention(user); }}
             >
               <img src={user.avatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${user.id}`} alt={user.name} className="h-6 w-6 rounded-full object-cover flex-shrink-0" />
               <span className="truncate font-medium">@{user.name}</span>
             </button>
           )) : (
-            <p className="px-3 py-2 text-xs text-gray-500">No interactions yet — like, comment, or back someone first</p>
+            <p className="px-3 py-2 text-xs text-faint">No interactions yet — like, comment, or back someone first</p>
           )}
         </div>
       )}
@@ -116,7 +117,7 @@ function renderTextWithMentions(text: string, onUserClick?: (userId: string) => 
       return (
         <span
           key={i}
-          className={`text-orange-400 font-medium ${user ? "cursor-pointer hover:text-orange-300" : ""}`}
+          className={`text-flame font-medium ${user ? "cursor-pointer hover:text-flame" : ""}`}
           onClick={() => user && onUserClick?.(user.id)}
         >
           {part}
@@ -184,13 +185,7 @@ interface PostCardProps {
   allUsers?: MentionUser[];
 }
 
-const categoryColors: Record<string, string> = {
-  gaming: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-  gambling: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  fitness: "bg-green-500/10 text-green-500 border-green-500/20",
-  hobbies: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  goals: "bg-rose-500/10 text-rose-500 border-rose-500/20",
-};
+const categoryChip = "bg-raised text-white border-transparent";
 
 export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, onDeleteComment, onLikeComment, onDeletePost, onCloseStreak, onReplyToComment, onUserClick, allUsers = [] }: PostCardProps) {
   const [isLiked, setIsLiked] = useState(post.isLiked || false);
@@ -275,11 +270,11 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
   };
 
   return (
-    <Card className="overflow-hidden border-white/10 bg-black/40 backdrop-blur-md group/post">
+    <Card className="overflow-hidden gap-0 bg-surface group/post">
       {/* User Header */}
-      <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 pb-2 sm:pb-3">
+      <div className="flex items-center gap-3 px-4 pt-4 pb-3 sm:px-[22px] sm:pt-[22px]">
         <Avatar 
-          className="h-9 w-9 sm:h-10 sm:w-10 cursor-pointer hover:ring-2 hover:ring-orange-500 transition-all"
+          className="h-10 w-10 cursor-pointer"
           onClick={() => onUserClick?.(post.userId)}
         >
           <img src={post.userAvatar} alt={post.userName} className="object-cover" />
@@ -287,26 +282,27 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 
-              className="text-white cursor-pointer hover:text-orange-500 transition-colors text-sm sm:text-base truncate"
+              className="text-white cursor-pointer hover:underline underline-offset-4 text-sm font-semibold truncate"
               onClick={() => onUserClick?.(post.userId)}
             >
               {post.userName}
             </h3>
-            <Badge variant="outline" className={`${categoryColors[post.category.toLowerCase()]} text-xs`}>
+            <Badge variant="outline" className={`${categoryChip} text-xs`}>
               {post.category}
             </Badge>
           </div>
-          <p className="text-gray-400 text-xs sm:text-sm">{post.timestamp}</p>
+          <p className="text-faint text-xs">{post.timestamp}</p>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-orange-500 to-red-500 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full flex-shrink-0">
-          <Flame className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
-          <span className="text-white text-xs sm:text-sm">{post.streakCount}</span>
+        <div className="flex items-center gap-1.5 rounded-full bg-flame-tint px-2.5 py-1 text-flame flex-shrink-0" title={`${post.streakCount} day streak`}>
+          <Flame className="h-3.5 w-3.5" />
+          <span className="text-sm font-medium tabular-nums">{post.streakCount}</span>
+          <span className="sr-only">day streak</span>
         </div>
         {currentUserId === post.userId && !post.isClosed && onCloseStreak && (
           <Button
             variant="ghost"
             size="sm"
-            className="opacity-0 group-hover/post:opacity-100 transition-opacity h-8 w-8 p-0 text-gray-400 hover:text-amber-500 hidden sm:flex"
+            className="opacity-0 group-hover/post:opacity-100 transition-opacity h-8 w-8 p-0 text-muted-text hover:text-white hidden sm:flex"
             title="End this streak"
             onClick={() => setShowCloseConfirm(true)}
           >
@@ -317,14 +313,14 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
           <Button
             variant="ghost"
             size="sm"
-            className="opacity-0 group-hover/post:opacity-100 transition-opacity h-8 w-8 p-0 text-gray-400 hover:text-red-500 hidden sm:flex"
+            className="opacity-0 group-hover/post:opacity-100 transition-opacity h-8 w-8 p-0 text-muted-text hover:text-red-500 hidden sm:flex"
             onClick={() => setShowDeleteConfirm(true)}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
         )}
         {post.isClosed && (
-          <Badge className="bg-amber-500/15 border-amber-500/30 text-amber-400 border text-xs gap-1 px-2 py-0.5">
+          <Badge className="bg-raised border-transparent text-white border text-xs gap-1 px-2 py-0.5">
             <CheckCircle2 className="h-3 w-3" />
             Streak Ended
           </Badge>
@@ -332,9 +328,19 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
       </div>
 
       {/* Post Content */}
-      <div className="px-3 sm:px-4 pb-2 sm:pb-3">
-        <h4 className="text-white mb-1 text-sm sm:text-base">{post.title}</h4>
-        <p className="text-gray-300 text-xs sm:text-sm">{post.description}</p>
+      <div className="px-4 pb-4 sm:px-[22px]">
+        <h4 className="text-white mb-1 text-base font-semibold">{post.title}</h4>
+        <p className="text-body text-sm sm:text-[15px] leading-[22px]">{post.description}</p>
+        {post.isParentStreak && post.streakDays && post.streakDays.length > 1 && (
+          <div className="mt-4 flex items-center gap-3">
+            <StreakChain
+              days={post.streakDays.length}
+              activeIndex={currentDayIndex}
+              onSelect={(index) => carouselApi?.scrollTo(index)}
+            />
+            <span className="text-[13px] text-muted-text tabular-nums whitespace-nowrap">Day {post.streakDays[currentDayIndex]?.dayNumber ?? 1} of {post.streakDays.length}</span>
+          </div>
+        )}
       </div>
 
       {/* Media (Image or Video) - Carousel for multi-day streaks */}
@@ -344,7 +350,7 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
             {post.streakDays.map((day, index) => (
               <CarouselItem key={index}>
                 <div 
-                  className="relative aspect-[4/3] bg-black/20 cursor-pointer select-none"
+                  className="relative aspect-[4/3] bg-raised cursor-pointer select-none"
                   onDoubleClick={() => {
                     if (!day.isLiked && onLikeDay) {
                       onLikeDay(post.id, day.dayNumber);
@@ -366,7 +372,7 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
                     />
                   )}
                   {/* Day indicator */}
-                  <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/70 backdrop-blur-sm px-2 py-1 sm:px-3 sm:py-1.5 rounded-full">
+                  <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-surface px-2 py-1 sm:px-3 sm:py-1.5 rounded-full">
                     <span className="text-white text-xs sm:text-sm">Day {day.dayNumber}</span>
                   </div>
                 </div>
@@ -378,7 +384,7 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
         </Carousel>
       ) : (
         <div 
-          className="relative aspect-[4/3] bg-black/20 cursor-pointer select-none"
+          className="relative aspect-[4/3] bg-raised cursor-pointer select-none"
           onDoubleClick={handleDoubleClick}
         >
           {post.mediaType === 'video' ? (
@@ -399,27 +405,27 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
       )}
 
       {/* Actions */}
-      <div className="p-3 sm:p-4">
-        <div className="flex items-center gap-3 sm:gap-4 mb-2 sm:mb-3">
+      <div className="px-2 py-2 sm:px-3">
+        <div className="flex items-center gap-1">
           {post.isParentStreak && post.streakDays && post.streakDays.length > 0 ? (
             <Button
               variant="ghost"
               size="sm"
               className={`gap-2 transition-all duration-300 ${
                 post.streakDays[currentDayIndex]?.isLiked 
-                  ? 'text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]' 
-                  : 'text-gray-300 hover:text-white'
+                  ? 'text-flame' 
+                  : 'text-muted-text hover:text-white'
               }`}
               onClick={() => onLikeDay?.(post.id, post.streakDays![currentDayIndex].dayNumber)}
             >
               <Flame 
                 className={`h-5 w-5 transition-all duration-300 ${
                   post.streakDays[currentDayIndex]?.isLiked 
-                    ? 'fill-orange-500 drop-shadow-[0_0_12px_rgba(249,115,22,0.8)] scale-110' 
+                    ? 'fill-flame scale-110' 
                     : 'fill-none'
                 }`} 
               />
-              <span className="text-[rgb(247,167,7)]">{post.streakDays[currentDayIndex]?.likes || 0}</span>
+              <span className="tabular-nums">{post.streakDays[currentDayIndex]?.likes || 0}</span>
             </Button>
           ) : (
             <Button
@@ -427,29 +433,29 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
               size="sm"
               className={`gap-2 transition-all duration-300 ${
                 isLiked 
-                  ? 'text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]' 
-                  : 'text-gray-300 hover:text-white'
+                  ? 'text-flame' 
+                  : 'text-muted-text hover:text-white'
               }`}
               onClick={handleLike}
             >
               <Flame 
                 className={`h-5 w-5 transition-all duration-300 ${
                   isLiked 
-                    ? 'fill-orange-500 drop-shadow-[0_0_12px_rgba(249,115,22,0.8)] scale-110' 
+                    ? 'fill-flame scale-110' 
                     : 'fill-none'
                 }`} 
               />
-              <span className="text-[rgb(247,167,7)]">{likesCount}</span>
+              <span className="tabular-nums">{likesCount}</span>
             </Button>
           )}
           <Button
             variant="ghost"
             size="sm"
-            className="gap-2 text-gray-300 hover:text-white"
+            className="gap-2 text-muted-text hover:text-white"
             onClick={() => setIsDialogOpen(true)}
           >
             <MessageCircle className="h-5 w-5" />
-            <span className="text-[rgb(255,191,0)]">{post.comments.reduce((sum, c) => sum + 1 + (c.replies?.length || 0), 0)}</span>
+            <span className="tabular-nums">{post.comments.reduce((sum, c) => sum + 1 + (c.replies?.length || 0), 0)}</span>
           </Button>
         </div>
 
@@ -457,14 +463,14 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
 
       {/* Comments Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-[500px] h-[80vh] p-0 bg-black/95 border-white/10 flex flex-col">
+        <DialogContent className="max-w-[500px] h-[80vh] p-0 bg-surface border-rule flex flex-col">
           <DialogTitle className="sr-only">{post.title}</DialogTitle>
           <DialogDescription className="sr-only">
             View post details, comments, and interact with the post
           </DialogDescription>
           <div className="flex flex-col flex-1 min-h-0">
               {/* Post Header */}
-              <div className="p-4 border-b border-white/10 flex-shrink-0">
+              <div className="p-4 border-b border-rule flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
                     <img src={post.userAvatar} alt={post.userName} className="object-cover" />
@@ -472,11 +478,11 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="text-white">{post.userName}</h3>
-                      <Badge variant="outline" className={categoryColors[post.category.toLowerCase()]}>
+                      <Badge variant="outline" className={categoryChip}>
                         {post.category}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-2 text-gray-400 text-sm">
+                    <div className="flex items-center gap-2 text-muted-text text-sm">
                       <Flame className="h-3 w-3" />
                       <span>{post.streakCount} day streak</span>
                     </div>
@@ -484,7 +490,7 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
                 </div>
                 <div className="mt-3">
                   <h4 className="text-white mb-1">{post.title}</h4>
-                  <p className="text-gray-300 text-sm">{post.description}</p>
+                  <p className="text-body text-sm">{post.description}</p>
                 </div>
               </div>
 
@@ -492,34 +498,34 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
               <ScrollArea className="flex-1 min-h-0 p-4">
                 <div className="space-y-4">
                   {post.comments.length === 0 ? (
-                    <p className="text-gray-400 text-center py-8">No comments yet</p>
+                    <p className="text-muted-text text-center py-8">No comments yet</p>
                   ) : (
                     post.comments.map((comment) => (
                       <div key={comment.id}>
                         <div className="flex gap-2 group">
                           <Avatar 
-                            className="h-8 w-8 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-orange-500 transition-all"
+                            className="h-8 w-8 flex-shrink-0 cursor-pointer "
                             onClick={() => onUserClick?.(comment.userId)}
                           >
                             <img src={comment.userAvatar} alt={comment.userName} className="object-cover" />
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <div className="bg-white/5 rounded-lg p-2">
+                            <div className="bg-raised rounded-lg p-2">
                               <p className="text-sm mb-1">
                                 <span 
-                                  className="text-white cursor-pointer hover:text-orange-500 transition-colors"
+                                  className="text-white cursor-pointer hover:underline underline-offset-4"
                                   onClick={() => onUserClick?.(comment.userId)}
                                 >
                                   {comment.userName}
                                 </span>{" "}
-                                <span className="text-gray-300">{renderTextWithMentions(comment.text, onUserClick, allUsers)}</span>
+                                <span className="text-body">{renderTextWithMentions(comment.text, onUserClick, allUsers)}</span>
                               </p>
-                              <div className="flex items-center gap-3 text-xs text-gray-400">
+                              <div className="flex items-center gap-3 text-xs text-muted-text">
                                 <span>{comment.timestamp}</span>
                                 <button
                                   onClick={() => onLikeComment?.(post.id, comment.id)}
                                   className={`flex items-center gap-1 transition-colors ${
-                                    comment.isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-400'
+                                    comment.isLiked ? 'text-red-500' : 'text-muted-text hover:text-red-400'
                                   }`}
                                 >
                                   <Heart className={`h-3 w-3 ${comment.isLiked ? 'fill-red-500' : ''}`} />
@@ -527,7 +533,7 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
                                 </button>
                                 <button
                                   onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
-                                  className="text-gray-400 hover:text-white transition-colors"
+                                  className="text-muted-text hover:text-white transition-colors"
                                 >
                                   Reply
                                 </button>
@@ -542,7 +548,7 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
                                   onChange={setReplyText}
                                   onKeyDown={(e) => e.key === 'Enter' && handleReply(comment.id)}
                                   placeholder="Write a reply..."
-                                  className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                  className="w-full bg-raised border border-rule rounded-lg px-2 py-1 text-xs text-white placeholder:text-muted-text focus:outline-none focus:ring-1 focus:ring-white"
                                   users={allUsers}
                                   onUserClick={onUserClick}
                                   autoFocus
@@ -557,7 +563,7 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
                             {comment.replies && comment.replies.length > 0 && (
                               <button
                                 onClick={() => toggleReplies(comment.id)}
-                                className="mt-2 text-xs text-gray-400 hover:text-white transition-colors"
+                                className="mt-2 text-xs text-muted-text hover:text-white transition-colors"
                               >
                                 {showRepliesFor.has(comment.id) 
                                   ? `Hide replies (${comment.replies.length})` 
@@ -567,32 +573,32 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
 
                             {/* Nested Replies */}
                             {showRepliesFor.has(comment.id) && comment.replies && comment.replies.length > 0 && (
-                              <div className="mt-2 space-y-2 pl-4 border-l-2 border-white/10">
+                              <div className="mt-2 space-y-2 pl-4 border-l-2 border-rule">
                                 {comment.replies.map((reply) => (
                                   <div key={reply.id} className="flex gap-2 group/reply">
                                     <Avatar 
-                                      className="h-6 w-6 flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-orange-500 transition-all"
+                                      className="h-6 w-6 flex-shrink-0 cursor-pointer "
                                       onClick={() => onUserClick?.(reply.userId)}
                                     >
                                       <img src={reply.userAvatar} alt={reply.userName} className="object-cover" />
                                     </Avatar>
                                     <div className="flex-1 min-w-0">
-                                      <div className="bg-white/5 rounded-lg p-2">
+                                      <div className="bg-raised rounded-lg p-2">
                                         <p className="text-xs mb-1">
                                           <span 
-                                            className="text-white cursor-pointer hover:text-orange-500 transition-colors"
+                                            className="text-white cursor-pointer hover:underline underline-offset-4"
                                             onClick={() => onUserClick?.(reply.userId)}
                                           >
                                             {reply.userName}
                                           </span>{" "}
-                                          <span className="text-gray-300">{renderTextWithMentions(reply.text, onUserClick, allUsers)}</span>
+                                          <span className="text-body">{renderTextWithMentions(reply.text, onUserClick, allUsers)}</span>
                                         </p>
-                                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                                        <div className="flex items-center gap-2 text-xs text-muted-text">
                                           <span>{reply.timestamp}</span>
                                           <button
                                             onClick={() => onLikeComment?.(post.id, reply.id)}
                                             className={`flex items-center gap-1 transition-colors ${
-                                              reply.isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-400'
+                                              reply.isLiked ? 'text-red-500' : 'text-muted-text hover:text-red-400'
                                             }`}
                                           >
                                             <Heart className={`h-3 w-3 ${reply.isLiked ? 'fill-red-500' : ''}`} />
@@ -605,7 +611,7 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="opacity-0 group-hover/reply:opacity-100 transition-opacity h-6 w-6 p-0 text-gray-400 hover:text-red-500 flex-shrink-0"
+                                        className="opacity-0 group-hover/reply:opacity-100 transition-opacity h-6 w-6 p-0 text-muted-text hover:text-red-500 flex-shrink-0"
                                         onClick={() => onDeleteComment(post.id, reply.id)}
                                       >
                                         <Trash2 className="h-3 w-3" />
@@ -620,7 +626,7 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 text-gray-400 hover:text-red-500 flex-shrink-0"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 text-muted-text hover:text-red-500 flex-shrink-0"
                               onClick={() => onDeleteComment(post.id, comment.id)}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -634,26 +640,26 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
               </ScrollArea>
 
             {/* Add Comment Section */}
-            <div className="p-4 border-t border-white/10 flex-shrink-0">
+            <div className="p-4 border-t border-rule flex-shrink-0">
               <div className="flex items-center gap-4 mb-3">
                 <Button
                   variant="ghost"
                   size="sm"
                   className={`gap-2 transition-all duration-300 ${
                     isLiked 
-                      ? 'text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]' 
-                      : 'text-gray-300 hover:text-white'
+                      ? 'text-flame' 
+                      : 'text-body hover:text-white'
                   }`}
                   onClick={handleLike}
                 >
                   <Flame 
                     className={`h-5 w-5 transition-all duration-300 ${
                       isLiked 
-                        ? 'fill-orange-500 drop-shadow-[0_0_12px_rgba(249,115,22,0.8)] scale-110' 
+                        ? 'fill-flame scale-110' 
                         : 'fill-none'
                     }`} 
                   />
-                  <span className="text-[rgb(247,167,7)]">{likesCount}</span>
+                  <span className="tabular-nums">{likesCount}</span>
                 </Button>
               </div>
               <div className="flex gap-2">
@@ -662,7 +668,7 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
                   onChange={setCommentText}
                   onKeyDown={(e) => e.key === 'Enter' && handleComment()}
                   placeholder="Add a comment... (@ to mention)"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full bg-raised border border-rule rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted-text focus:outline-none focus:ring-2 focus:ring-white"
                   users={allUsers}
                   onUserClick={onUserClick}
                 />
@@ -675,22 +681,22 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
 
       {/* End Streak Confirmation Dialog */}
       <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
-        <AlertDialogContent className="bg-black/95 border-white/10">
+        <AlertDialogContent className="bg-surface border-rule">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white flex items-center gap-2">
-              <FlagOff className="h-5 w-5 text-amber-500" />
+              <FlagOff className="h-5 w-5 text-white" />
               End This Streak?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-300">
+            <AlertDialogDescription className="text-body">
               This marks the streak as officially over. No more days can be added. The post stays visible to everyone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-white/10 text-white hover:bg-white/20 border-white/10">
+            <AlertDialogCancel className="bg-raised text-white hover:bg-[#363330] border-rule">
               Keep Going
             </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-amber-500 text-white hover:bg-amber-600"
+              className="bg-white text-white hover:bg-[#e6e3df]"
               onClick={() => {
                 onCloseStreak?.(post.id);
                 setShowCloseConfirm(false);
@@ -704,15 +710,15 @@ export function PostCard({ post, currentUserId, onLike, onLikeDay, onComment, on
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent className="bg-black/95 border-white/10">
+        <AlertDialogContent className="bg-surface border-rule">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">Delete Post</AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-300">
+            <AlertDialogDescription className="text-body">
               Are you sure you want to delete this post? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-white/10 text-white hover:bg-white/20 border-white/10">
+            <AlertDialogCancel className="bg-raised text-white hover:bg-[#363330] border-rule">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction 

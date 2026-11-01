@@ -135,21 +135,19 @@ export function ArenaView({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 sm:gap-3">
-          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center flex-shrink-0">
-            <Swords className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-          </div>
           <div className="min-w-0">
-            <h2 className="text-white text-base sm:text-xl">Arena</h2>
-            <p className="text-gray-300 text-xs sm:text-sm hidden sm:block">Battle for the top spot with your streaks</p>
+            <h1 className="text-xl font-semibold leading-7 text-white">Arena</h1>
+            <p className="mt-0.5 text-sm text-muted-text">Battle for the top spot with your streaks</p>
           </div>
         </div>
         {onRefresh && (
           <Button
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="icon"
             onClick={onRefresh}
             disabled={isRefreshing}
-            className="bg-white/5 border-white/10 hover:bg-white/10 text-white flex-shrink-0"
+            aria-label="Refresh"
+            className="text-muted-text flex-shrink-0"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
@@ -160,29 +158,29 @@ export function ArenaView({
       <div className="space-y-4">
         <div className="relative" ref={searchContainerRef}>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-text" />
             <Input
               type="text"
               placeholder="Search posts, users, or categories..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               onFocus={() => searchQuery.trim().length > 0 && setShowUserDropdown(true)}
-              className="bg-black/40 border-white/10 text-white placeholder:text-gray-400 pl-10"
+              className="bg-surface border-rule text-white placeholder:text-muted-text pl-10"
             />
           </div>
 
           {/* User Search Dropdown */}
           {showUserDropdown && matchingUsers.length > 0 && (
-            <Card className="absolute z-10 w-full mt-2 border-white/10 bg-black/90 backdrop-blur-md overflow-hidden">
+            <Card className="absolute z-10 w-full mt-2 border-rule bg-surface overflow-hidden">
               <div className="py-2">
-                <div className="px-3 py-2 text-xs text-gray-400 uppercase tracking-wide">
+                <div className="px-3 py-2 text-xs text-faint">
                   Users
                 </div>
                 {matchingUsers.map((user) => (
                   <button
                     key={user.id}
                     onClick={() => handleUserSelect(user)}
-                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/10 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-raised transition-colors text-left"
                   >
                     <Avatar className="h-8 w-8">
                       <img src={user.avatar} alt={user.name} className="object-cover" />
@@ -198,14 +196,14 @@ export function ArenaView({
         {/* Selected User Filter Badge */}
         {selectedUser && (
           <div className="flex items-center gap-2">
-            <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 gap-2 px-3 py-2">
+            <Badge className="bg-[#f2efe9] text-[#0e0d0c] border-0 gap-2 px-3 py-2">
               <Avatar className="h-5 w-5">
                 <img src={selectedUser.avatar} alt={selectedUser.name} className="object-cover" />
               </Avatar>
               <span>Showing posts by {selectedUser.alias || selectedUser.name}</span>
               <button
                 onClick={handleClearUserFilter}
-                className="ml-1 hover:bg-white/20 rounded-full p-0.5 transition-colors"
+                className="ml-1 hover:bg-[#363330] rounded-full p-0.5 transition-colors"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -216,7 +214,7 @@ export function ArenaView({
 
       {/* Grid of Posts */}
       {filteredPosts.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-12 text-muted-text">
           {selectedUser ? `No posts found by ${selectedUser.alias || selectedUser.name}` : "No posts found"}
         </div>
       ) : (
@@ -233,7 +231,7 @@ export function ArenaView({
             return (
             <div
               key={post.id}
-              className="relative group cursor-pointer overflow-hidden bg-black/20 aspect-square rounded-lg"
+              className="relative group cursor-pointer overflow-hidden bg-raised aspect-square rounded-lg"
               onClick={() => setSelectedPostId(post.id)}
             >
               {displayMediaType === 'video' ? (
@@ -253,13 +251,13 @@ export function ArenaView({
               
               {/* Multi-day indicator */}
               {post.isParentStreak && post.streakDays && post.streakDays.length > 1 && (
-                <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 rounded-full">
-                  <span className="text-white text-xs">📅 {post.streakDays.length} days</span>
+                <div className="absolute top-2 right-2 bg-surface px-2 py-1 rounded-full">
+                  <span className="text-white text-xs tabular-nums">{post.streakDays.length} days</span>
                 </div>
               )}
               
               {/* Hover Overlay */}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-4 rounded-lg">
+              <div className="absolute inset-0 bg-surface opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-4 rounded-lg">
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2 text-white">
                     <Heart className="h-6 w-6 fill-white" />
@@ -272,7 +270,7 @@ export function ArenaView({
                 </div>
                 
                 {/* Streak Badge */}
-                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500">
+                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-flame-tint text-flame">
                   <Flame className="h-4 w-4 text-white" />
                   <span className="text-white font-semibold">{post.streakCount} days</span>
                 </div>
@@ -280,7 +278,7 @@ export function ArenaView({
 
               {/* Category Badge */}
               <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Badge className="bg-black/60 text-white border-0 backdrop-blur-sm">
+                <Badge className="bg-surface text-white border-0">
                   {post.category}
                 </Badge>
               </div>
@@ -292,7 +290,7 @@ export function ArenaView({
 
       {/* Post Detail Dialog */}
       <Dialog open={!!selectedPost} onOpenChange={() => setSelectedPostId(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-black/95 border-white/10 text-white">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-surface border-rule text-white">
           <DialogTitle className="sr-only">
             {selectedPost?.title || "Post Details"}
           </DialogTitle>

@@ -137,7 +137,7 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
           Edit Profile
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-black/90 border-white/10 text-white backdrop-blur-md">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-surface border-rule text-white">
         <DialogHeader>
           <DialogTitle>Edit Profile</DialogTitle>
           <DialogDescription>
@@ -160,11 +160,11 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
                       accept="image/*"
                       onChange={handleFileUpload}
                       disabled={isUploading}
-                      className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-orange-500 file:text-white file:cursor-pointer hover:file:bg-orange-600 text-[rgb(0,0,0)]"
+                      className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-flame file:text-white file:cursor-pointer hover:file:bg-flame text-[rgb(0,0,0)]"
                     />
                   </label>
                 </div>
-                <p className="text-xs text-gray-300">
+                <p className="text-xs text-body">
                   {isUploading ? (
                     <span className="flex items-center gap-2">
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -215,7 +215,7 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
                 variant="ghost"
                 size="sm"
                 onClick={addLink}
-                className="h-8 gap-1 text-orange-400 hover:text-orange-300 hover:bg-white/5"
+                className="h-8 gap-1 text-flame hover:text-flame hover:bg-raised"
                 disabled={websiteLinks.length >= 5}
               >
                 <Plus className="h-4 w-4" />
@@ -237,25 +237,25 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
                     variant="ghost"
                     size="icon"
                     onClick={() => removeLink(index)}
-                    className="h-10 w-10 text-gray-400 hover:text-red-400 hover:bg-white/5"
+                    className="h-10 w-10 text-muted-text hover:text-red-400 hover:bg-raised"
                   >
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
             </div>
-            <p className="text-xs text-gray-300">
+            <p className="text-xs text-body">
               Add up to 5 links (website, portfolio, or social media)
             </p>
           </div>
 
           {/* Privacy Toggle */}
-          <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 p-4 bg-[rgba(255,255,255,0.05)]">
+          <div className="flex items-center justify-between rounded-lg border border-rule bg-raised p-4 bg-[rgba(255,255,255,0.05)]">
             <div className="space-y-0.5">
               <Label htmlFor="privacy-toggle" className="cursor-pointer text-white">
                 Profile Status
               </Label>
-              <p className="text-sm text-gray-300">
+              <p className="text-sm text-body">
                 {isPublic 
                   ? "Your profile is visible to everyone" 
                   : "Your profile is private"}
@@ -275,7 +275,7 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
           </Button>
           <Button 
             onClick={handleSubmit} 
-            className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+            className="bg-white text-black hover:bg-[#e6e3df]"
           >
             Save Changes
           </Button>
