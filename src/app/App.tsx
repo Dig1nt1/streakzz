@@ -11,6 +11,7 @@ import { CreatePostDialog } from "./components/CreatePostDialog";
 import { AuthView } from "./components/AuthView";
 import { WelcomeDialog } from "./components/WelcomeDialog";
 import { UserMenu } from "./components/UserMenu";
+import { InstallAppBanner } from "./components/InstallAppBanner";
 import { Post, Comment, StreakDay } from "./components/PostCard";
 import { Button } from "./components/ui/button";
 import { getSupabaseClient } from "./utils/supabase/client";
@@ -1420,7 +1421,7 @@ export default function App() {
       </aside>
 
       {/* Phone and tablet: a slim top bar; the destinations live in the bottom bar */}
-      <header className="sticky top-0 z-50 border-b border-rule bg-ground lg:hidden">
+      <header className="sticky top-0 z-50 border-b border-rule bg-ground pt-[env(safe-area-inset-top)] lg:hidden">
         <div className="px-4 sm:px-6 h-14 flex items-center gap-3">
           <button onClick={() => goTo("feed")} className="flex items-center gap-2 shrink-0" aria-label="Streakz home">
             <img src={streakzLogo} alt="" className="h-7 w-7" />
@@ -1449,7 +1450,7 @@ export default function App() {
       </header>
 
       <div className="lg:pl-[72px]">
-      <div className="mx-auto max-w-[1120px] px-4 sm:px-6 pt-6 pb-24 lg:pt-8 lg:pb-10">
+      <div className="mx-auto max-w-[1120px] px-4 sm:px-6 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pt-8 lg:pb-10">
         <div className={showRail ? "grid items-start gap-[14px] xl:grid-cols-[minmax(0,1fr)_320px]" : ""}>
           <main className="min-w-0">
             {currentView === "feed" && (
@@ -1605,7 +1606,7 @@ export default function App() {
       </div>
 
       {/* Mobile bottom navigation */}
-      <nav aria-label="Main" className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-rule bg-ground">
+      <nav aria-label="Main" className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-rule bg-ground pb-[env(safe-area-inset-bottom)]">
         <div className="grid grid-cols-6 h-16 px-1">
           {navItems.map(item => {
             const Icon = item.icon;
@@ -1626,6 +1627,9 @@ export default function App() {
           })}
         </div>
       </nav>
+
+      {/* Offer to install the app on the home screen */}
+      <InstallAppBanner className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 lg:inset-x-auto lg:bottom-6 lg:right-6 lg:w-[380px]" />
 
       {/* Welcome Dialog for New Users */}
       {showWelcome && authState.userName && (
