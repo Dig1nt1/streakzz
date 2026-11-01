@@ -1629,7 +1629,9 @@ export default function App() {
       </nav>
 
       {/* Offer to install the app on the home screen */}
-      <InstallAppBanner className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 lg:inset-x-auto lg:bottom-6 lg:right-6 lg:w-[380px]" />
+      {currentView !== "messages" && (
+        <InstallAppBanner className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 lg:inset-x-auto lg:bottom-6 lg:right-6 lg:w-[380px]" />
+      )}
 
       {/* Welcome Dialog for New Users */}
       {showWelcome && authState.userName && (

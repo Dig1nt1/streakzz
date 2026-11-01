@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Search, MoreVertical, Flame, MessageSquare, ImagePlus, X, Trash2, Clock } from "lucide-react";
+import { Send, Search, MoreVertical, Flame, MessageSquare, ImagePlus, X, Trash2, Clock, ChevronLeft } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Avatar } from "./ui/avatar";
 import { Button } from "./ui/button";
@@ -48,181 +48,6 @@ interface MessagesViewProps {
   }>;
   accessToken?: string;
 }
-
-// Mock conversations data (NOT USED - kept for reference only)
-// New users and logged-in users start with empty conversations
-const mockConversations: Conversation[] = [
-  {
-    id: "1",
-    userId: "2",
-    userName: "Marcus Rodriguez",
-    userAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-    lastMessage: "That's awesome! Let's squad up tomorrow",
-    lastMessageTime: "2m ago",
-    unread: 2,
-    messages: [
-      {
-        id: "m1",
-        senderId: "2",
-        text: "Hey! Saw your 89-day streak post. That's incredible! 💪",
-        timestamp: "10:30 AM",
-        sentAt: Date.now() - 3600000, // 1 hour ago
-        likes: 0,
-        isLiked: false,
-      },
-      {
-        id: "m2",
-        senderId: "current",
-        text: "Thanks! It's been a journey but totally worth it",
-        timestamp: "10:32 AM",
-        sentAt: Date.now() - 3540000, // 59 minutes ago
-        likes: 1,
-        isLiked: false,
-      },
-      {
-        id: "m3",
-        senderId: "2",
-        text: "I'm trying to build a morning routine too. Any tips?",
-        timestamp: "10:33 AM",
-        sentAt: Date.now() - 3480000, // 58 minutes ago
-        likes: 0,
-        isLiked: false,
-      },
-      {
-        id: "m4",
-        senderId: "current",
-        text: "Start small! I began with just 15 minutes and built up from there",
-        timestamp: "10:35 AM",
-        sentAt: Date.now() - 3360000, // 56 minutes ago
-        likes: 2,
-        isLiked: false,
-      },
-      {
-        id: "m5",
-        senderId: "2",
-        text: "That's awesome! Let's squad up tomorrow",
-        timestamp: "10:36 AM",
-        sentAt: Date.now() - 3300000, // 55 minutes ago
-        likes: 0,
-        isLiked: false,
-      },
-      {
-        id: "m5a",
-        senderId: "current",
-        text: "Definitely! I'll be online around 7 PM",
-        timestamp: "Just now",
-        sentAt: Date.now() - 120000, // 2 minutes ago (within delete window)
-        likes: 0,
-        isLiked: false,
-      },
-    ],
-  },
-  {
-    id: "2",
-    userId: "3",
-    userName: "Emily Watson",
-    userAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
-    lastMessage: "Yes! I meditate at 6 AM every day",
-    lastMessageTime: "1h ago",
-    unread: 0,
-    messages: [
-      {
-        id: "m6",
-        senderId: "current",
-        text: "Love your meditation streak! Do you have a specific time you practice?",
-        timestamp: "9:15 AM",
-        sentAt: Date.now() - 7200000, // 2 hours ago
-        likes: 1,
-        isLiked: false,
-      },
-      {
-        id: "m7",
-        senderId: "3",
-        text: "Yes! I meditate at 6 AM every day",
-        timestamp: "9:20 AM",
-        sentAt: Date.now() - 6900000, // ~1 hour 55 min ago
-        likes: 0,
-        isLiked: false,
-      },
-    ],
-  },
-  {
-    id: "3",
-    userId: "4",
-    userName: "Alex Kim",
-    userAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop",
-    lastMessage: "Thanks for the motivation!",
-    lastMessageTime: "3h ago",
-    unread: 0,
-    messages: [
-      {
-        id: "m8",
-        senderId: "4",
-        text: "Your fitness posts are inspiring! 🔥",
-        timestamp: "Yesterday",
-        sentAt: Date.now() - 86400000, // 1 day ago
-        likes: 0,
-        isLiked: false,
-      },
-      {
-        id: "m9",
-        senderId: "current",
-        text: "Thank you! Keep crushing your guitar practice!",
-        timestamp: "Yesterday",
-        sentAt: Date.now() - 86100000, // ~1 day ago
-        likes: 1,
-        isLiked: false,
-      },
-      {
-        id: "m10",
-        senderId: "4",
-        text: "Thanks for the motivation!",
-        timestamp: "Yesterday",
-        sentAt: Date.now() - 85800000, // ~1 day ago
-        likes: 0,
-        isLiked: false,
-      },
-    ],
-  },
-  {
-    id: "4",
-    userId: "5",
-    userName: "Jordan Taylor",
-    userAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
-    lastMessage: "Let's compete next week!",
-    lastMessageTime: "1d ago",
-    unread: 1,
-    messages: [
-      {
-        id: "m11",
-        senderId: "5",
-        text: "Saw you on the leaderboard! Great work!",
-        timestamp: "2 days ago",
-        sentAt: Date.now() - 172800000, // 2 days ago
-        likes: 0,
-        isLiked: false,
-      },
-      {
-        id: "m12",
-        senderId: "current",
-        text: "Thanks! You're doing amazing too!",
-        timestamp: "2 days ago",
-        sentAt: Date.now() - 172500000, // ~2 days ago
-        likes: 1,
-        isLiked: false,
-      },
-      {
-        id: "m13",
-        senderId: "5",
-        text: "Let's compete next week!",
-        timestamp: "2 days ago",
-        sentAt: Date.now() - 172200000, // ~2 days ago
-        likes: 0,
-        isLiked: false,
-      },
-    ],
-  },
-];
 
 export function MessagesView({ currentUserId, currentUserName, currentUserAvatar, onUserClick, selectedUserId, selectedUserInfo, onConversationOpened, allUsers = [], accessToken }: MessagesViewProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -517,7 +342,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
       }),
     };
 
-    const lastMessageText = text || (media?.type.startsWith('video/') ? '📹 Video' : '📷 Photo');
+    const lastMessageText = text || (media?.type.startsWith('video/') ? 'Video' : 'Photo');
 
     // Clear the input and show the message immediately
     setMessageText("");
@@ -612,7 +437,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
       return {
         ...c,
         messages: updatedMessages,
-        lastMessage: lastMsg?.text || (lastMsg?.mediaType === 'video' ? '📹 Video' : lastMsg?.mediaUrl ? '📷 Photo' : 'No messages'),
+        lastMessage: lastMsg?.text || (lastMsg?.mediaType === 'video' ? 'Video' : lastMsg?.mediaUrl ? 'Photo' : 'No messages'),
         lastMessageTime: lastMsg?.timestamp || '',
       };
     });
@@ -766,317 +591,271 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
   const filteredConversations = conversations.filter((conv) =>
     conv.userName.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const unreadCount = conversations.filter(conv => conv.unread > 0).length;
+
+  // Who a conversation is with: the id comes from the key, the name and photo from the user list when known
+  const resolveConversation = (conversation: Conversation) => {
+    const keyParts = conversation.id?.split(":");
+    const otherId = (keyParts && keyParts.length >= 3 && keyParts[2] !== currentUserId)
+      ? keyParts[2]
+      : (conversation.userId !== currentUserId ? conversation.userId : keyParts?.[2]) || conversation.userId;
+    const resolvedUser = otherId && otherId !== currentUserId ? allUsers.find(u => u.id === otherId) : null;
+    const name = resolvedUser?.name || (conversation.userName && conversation.userName !== "User" ? conversation.userName : null) || `User ${(otherId || "").slice(-4)}`;
+    const avatar = resolvedUser?.avatar || conversation.userAvatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${otherId}`;
+    return { otherId, name, avatar };
+  };
+
+  const openConversation = (conversation: Conversation) => {
+    const { otherId, name, avatar } = resolveConversation(conversation);
+    setSelectedConversation({ ...conversation, userId: otherId, userName: name, userAvatar: avatar });
+  };
+
+  // Keep the newest message in view when the thread opens or a message arrives
+  const threadEndRef = useRef<HTMLDivElement>(null);
+  const messageCount = selectedConversation?.messages.length ?? 0;
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ block: "end" });
+  }, [selectedConversation?.id, messageCount]);
+
+  const dayLabel = (ms: number) => {
+    const day = new Date(ms); day.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diff = Math.round((today.getTime() - day.getTime()) / 86400000);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+    return day.toLocaleDateString("en-US", { weekday: diff < 7 ? "long" : undefined, month: diff < 7 ? undefined : "short", day: diff < 7 ? undefined : "numeric" });
+  };
+
+  // On wide screens the chat pane is always visible, so open the most recent conversation
+  // instead of leaving it empty. Phones keep the list first.
+  useEffect(() => {
+    if (!conversationsLoaded || selectedConversation || selectedUserId || conversations.length === 0) return;
+    if (window.matchMedia("(min-width: 1024px)").matches) openConversation(conversations[0]);
+  }, [conversationsLoaded, conversations.length]);
+
+  const thread = selectedConversation ? resolveConversation(selectedConversation) : null;
 
   return (
     <>
-    <div className="h-[calc(100vh-120px)] flex">
-      {/* Conversations List - Narrow Sidebar */}
-      <div className="w-80 border-r border-rule flex flex-col bg-surface rounded-[5px] p-[0px] mx-[5px] my-[0px]">
-        <div className="p-4 border-b border-rule">
-          <h1 className="mb-3 text-xl font-semibold leading-7 text-white">Messages</h1>
+    {/* Inbox: on a phone one region at a time (list, then the open chat); side by side from lg up */}
+    <div className="grid h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-[420px] grid-cols-1 gap-[14px] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[340px_minmax(0,1fr)]">
+      {/* Conversation list */}
+      <section
+        aria-label="Conversations"
+        className={`min-h-0 flex-col rounded-[20px] bg-surface ${selectedConversation ? "hidden lg:flex" : "flex"}`}
+      >
+        <div className="px-4 pt-4 pb-3">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h1 className="text-xl font-semibold leading-7 text-white">Messages</h1>
+            {unreadCount > 0 && <span className="text-xs tabular-nums text-muted-text">{unreadCount} unread</span>}
+          </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-text" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
             <Input
-              placeholder="Search..."
+              placeholder="Search people"
+              aria-label="Search conversations"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-raised border-rule text-white placeholder:text-muted-text"
+              className="h-10 rounded-full border-transparent bg-raised pl-10 text-white placeholder:text-faint"
             />
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
-          <div>
-            {filteredConversations.map((conversation) => {
-                const otherUserId = conversation.id?.split(":")[2] || conversation.userId;
-                const resolvedUser = otherUserId !== currentUserId
-                  ? allUsers.find(u => u.id === otherUserId)
-                  : null;
-                const displayName = resolvedUser?.name || (conversation.userName && conversation.userName !== "User" ? conversation.userName : null) || `User ${(otherUserId || "").slice(-4)}`;
-                const displayAvatar = resolvedUser?.avatar || conversation.userAvatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${otherUserId}`;
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+          {conversationsLoaded && filteredConversations.length === 0 ? (
+            <p className="px-3 py-6 text-sm text-muted-text">
+              {searchQuery ? `No one called "${searchQuery}".` : "No conversations yet. Message someone from their profile."}
+            </p>
+          ) : (
+            <ul>
+              {filteredConversations.map((conversation) => {
+                const { name, avatar } = resolveConversation(conversation);
+                const unread = conversation.unread > 0;
+                const selected = selectedConversation?.id === conversation.id;
                 return (
-                  <button
-                    key={conversation.id}
-                    onClick={() => setSelectedConversation({
-                      ...conversation,
-                      userId: otherUserId,
-                      userName: displayName,
-                      userAvatar: displayAvatar,
-                    })}
-                    className={`w-full p-3 flex items-center gap-3 hover:bg-raised transition-colors text-left ${
-                      selectedConversation?.id === conversation.id ? "bg-raised" : ""
-                    }`}
-                  >
-                    <Avatar className="h-12 w-12 flex-shrink-0">
-                      <img
-                        src={displayAvatar}
-                        alt={displayName}
-                        className="object-cover"
-                      />
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-white truncate text-sm">{displayName}</h3>
-                      <p className="text-xs text-muted-text truncate">{conversation.lastMessage}</p>
-                    </div>
-                    {conversation.unread > 0 && (
-                      <div className="h-2 w-2 bg-flame rounded-full flex-shrink-0" />
-                    )}
-                  </button>
+                  <li key={conversation.id}>
+                    <button
+                      onClick={() => openConversation(conversation)}
+                      aria-current={selected ? "true" : undefined}
+                      className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left transition-colors ${selected ? "bg-raised" : "hover:bg-[#201e1c]"}`}
+                    >
+                      <img src={avatar} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className={`truncate text-[15px] text-white ${unread ? "font-semibold" : "font-medium"}`}>{name}</span>
+                          <span className={`shrink-0 text-xs ${unread ? "text-white" : "text-faint"}`}>{conversation.lastMessageTime}</span>
+                        </span>
+                        <span className="mt-0.5 flex items-center gap-2">
+                          <span className={`truncate text-sm ${unread ? "text-white" : "text-muted-text"}`}>{conversation.lastMessage}</span>
+                          {unread && <span className="ml-auto h-2.5 w-2.5 shrink-0 rounded-full bg-flame" aria-label="Unread" />}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
                 );
               })}
-          </div>
-        </ScrollArea>
-      </div>
+            </ul>
+          )}
+        </div>
+      </section>
 
-      {/* Messages Thread */}
-      <div className="flex-1 flex flex-col bg-surface min-h-0 rounded-[20px]">
-            {selectedConversation ? (
-              <>
-                {/* Chat Header */}
-                <div className="p-4 border-b border-rule flex items-center justify-between flex-shrink-0">
-                  {(() => {
-                    // derive otherId robustly: prefer split from key, fallback to stored userId
-                    const keyParts = selectedConversation.id?.split(":");
-                    const otherId = (keyParts && keyParts.length >= 3 && keyParts[2] !== currentUserId)
-                      ? keyParts[2]
-                      : (selectedConversation.userId !== currentUserId ? selectedConversation.userId : keyParts?.[2]);
-                    const resolvedUser = otherId ? allUsers.find(u => u.id === otherId) : null;
-                    const headerName = resolvedUser?.name || (selectedConversation.userName && selectedConversation.userName !== "User" ? selectedConversation.userName : null) || `User ${(otherId || "").slice(-4)}`;
-                    const headerAvatar = resolvedUser?.avatar || selectedConversation.userAvatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${otherId}`;
-                    const goToProfile = () => { if (otherId && otherId !== currentUserId) onUserClick?.(otherId); };
-                    return (
-                      <div className="flex items-center gap-3">
-                        <Avatar
-                          className="h-10 w-10 cursor-pointer"
-                          onClick={goToProfile}
-                        >
-                          <img src={headerAvatar} alt={headerName} className="object-cover" />
-                        </Avatar>
-                        <div>
-                          <h3
-                            className="text-white cursor-pointer hover:text-flame transition-colors"
-                            onClick={goToProfile}
-                          >
-                            {headerName}
-                          </h3>
-                          <p className="text-xs text-muted-text">Active now</p>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-muted-text hover:text-white">
-                        <MoreVertical className="h-5 w-5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-surface border-rule">
-                      <DropdownMenuItem
-                        onClick={() => setShowDeleteDialog(true)}
-                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete chat
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+      {/* Open conversation */}
+      <section
+        aria-label={thread ? `Conversation with ${thread.name}` : "Conversation"}
+        className={`min-h-0 flex-col rounded-[20px] bg-surface ${selectedConversation ? "flex" : "hidden lg:flex"}`}
+      >
+        {selectedConversation && thread ? (
+          <>
+            <div className="flex shrink-0 items-center gap-2 border-b border-rule px-2 py-2 sm:px-3">
+              <button
+                onClick={() => setSelectedConversation(null)}
+                aria-label="Back to conversations"
+                className="grid h-10 w-10 place-items-center rounded-full text-white hover:bg-raised lg:hidden"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                onClick={() => { if (thread.otherId && thread.otherId !== currentUserId) onUserClick?.(thread.otherId); }}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-full py-1 pr-3 text-left hover:bg-[#201e1c] lg:pl-1"
+              >
+                <img src={thread.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                <span className="min-w-0">
+                  <span className="block truncate text-[15px] font-semibold text-white">{thread.name}</span>
+                  <span className="block text-xs text-faint">View profile</span>
+                </span>
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button aria-label="Conversation options" className="grid h-10 w-10 place-items-center rounded-full text-muted-text hover:bg-raised hover:text-white">
+                    <MoreVertical className="h-5 w-5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="cursor-pointer text-destructive focus:text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete chat
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5">
+              {selectedConversation.messages.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center">
+                  <img src={thread.avatar} alt="" className="mb-3 h-16 w-16 rounded-full object-cover" />
+                  <p className="text-base font-semibold text-white">{thread.name}</p>
+                  <p className="mt-1 text-sm text-muted-text">Say hi and cheer on their streak.</p>
                 </div>
-
-                {/* Messages */}
-                <ScrollArea className="flex-1 p-4 min-h-0">
-                  <div className="space-y-4">
-                    {selectedConversation.messages.map((message) => {
-                      const isCurrentUser = message.senderId === currentUserId || message.senderId === "current";
-                      return (
-                        <div
-                          key={message.id}
-                          className={`flex ${isCurrentUser ? "justify-end" : "justify-start"} group`}
-                        >
-                          <div className={`flex gap-2 max-w-[70%] ${isCurrentUser ? "flex-row-reverse" : ""}`}>
-                            <Avatar className="h-8 w-8 flex-shrink-0">
-                              <img
-                                src={isCurrentUser ? currentUserAvatar : selectedConversation.userAvatar}
-                                alt={isCurrentUser ? currentUserName : selectedConversation.userName}
-                                className="object-cover"
-                              />
-                            </Avatar>
-                            <div className="flex flex-col relative">
-                              <div className="relative">
-                                {isCurrentUser && canDeleteMessage(message) && (
-                                  <button
-                                    onClick={() => handleUnsendMessage(message.id)}
-                                    className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                    title="Unsend message (within 10 min)"
-                                  >
-                                    <Trash2 className="h-3 w-3 text-white" />
+              ) : (
+                <ol className="flex min-h-full flex-col justify-end gap-1">
+                  {selectedConversation.messages.map((message, index) => {
+                    const mine = message.senderId === currentUserId || message.senderId === "current";
+                    const previous = selectedConversation.messages[index - 1];
+                    const newDay = !previous || dayLabel(previous.sentAt) !== dayLabel(message.sentAt);
+                    const sameSenderAsPrevious = previous && !newDay && previous.senderId === message.senderId;
+                    const deletable = mine && canDeleteMessage(message) && !message.id.startsWith("temp-");
+                    return (
+                      <li key={message.id} className="flex flex-col">
+                        {newDay && message.sentAt > 0 && (
+                          <span className="my-3 self-center text-xs text-faint">{dayLabel(message.sentAt)}</span>
+                        )}
+                        <div className={`flex max-w-[82%] flex-col sm:max-w-[70%] ${mine ? "items-end self-end" : "items-start self-start"} ${sameSenderAsPrevious ? "" : "mt-2"}`}>
+                          <div className={`overflow-hidden rounded-[20px] ${mine ? "rounded-br-md bg-[#f2efe9] text-[#0e0d0c]" : "rounded-bl-md bg-raised text-white"} ${message.mediaUrl && !message.text ? "" : "px-3.5 py-2"}`}>
+                            {message.mediaUrl && (
+                              <div className={message.text ? "-mx-3.5 -mt-2 mb-2" : ""}>
+                                {message.mediaType === "video" ? (
+                                  <video src={message.mediaUrl} controls className="max-h-72 w-full" />
+                                ) : (
+                                  <button onClick={() => setEnlargedImage(message.mediaUrl!)} aria-label="Open photo" className="block">
+                                    <img src={message.mediaUrl} alt="Shared photo" className="max-h-72 w-full object-cover" />
                                   </button>
                                 )}
-                                <div
-                                  className={`rounded-2xl px-4 py-2 ${
-                                    isCurrentUser
-                                      ? "bg-[#f2efe9] text-[#0e0d0c]"
-                                      : "bg-raised text-white"
-                                  }`}
-                                >
-                                  {message.mediaUrl && (
-                                    <div className="mb-2">
-                                      {message.mediaType === 'video' ? (
-                                        <video
-                                          src={message.mediaUrl}
-                                          controls
-                                          className="rounded-lg max-w-full max-h-64"
-                                        />
-                                      ) : (
-                                        <img
-                                          src={message.mediaUrl}
-                                          alt="Shared media"
-                                          className="rounded-lg max-w-full max-h-64 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                          onClick={() => setEnlargedImage(message.mediaUrl!)}
-                                        />
-                                      )}
-                                    </div>
-                                  )}
-                                  {message.text && <p className="text-sm">{message.text}</p>}
-                                </div>
                               </div>
-                              <div className={`flex items-center gap-2 mt-1 ${isCurrentUser ? "flex-row-reverse" : ""}`}>
-                                <p className={`text-xs text-muted-text`}>
-                                  {message.timestamp}
-                                </p>
-                                {isCurrentUser && canDeleteMessage(message) && (
-                                  <div className="flex items-center gap-1 text-xs text-faint opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Clock className="h-3 w-3" />
-                                    <span>{getTimeRemaining(message)}</span>
-                                  </div>
-                                )}
-                                <button
-                                  onClick={() => handleLikeMessage(message.id)}
-                                  className="group flex items-center gap-1 hover:scale-110 transition-transform"
-                                >
-                                  <AnimatePresence mode="wait">
-                                    {message.isLiked ? (
-                                      <motion.div
-                                        key="liked"
-                                        initial={{ scale: 0 }}
-                                        animate={{ scale: 1 }}
-                                        exit={{ scale: 0 }}
-                                        transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                                      >
-                                        <Flame className="h-4 w-4 fill-flame text-flame" />
-                                      </motion.div>
-                                    ) : (
-                                      <motion.div
-                                        key="unliked"
-                                        initial={{ scale: 0 }}
-                                        animate={{ scale: 1 }}
-                                        exit={{ scale: 0 }}
-                                      >
-                                        <Flame className="h-4 w-4 text-muted-text group-hover:text-flame" />
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                  {message.likes > 0 && (
-                                    <motion.span
-                                      key={message.likes}
-                                      initial={{ scale: 1.3 }}
-                                      animate={{ scale: 1 }}
-                                      className={`text-xs ${message.isLiked ? 'text-flame' : 'text-muted-text'}`}
-                                    >
-                                      {message.likes}
-                                    </motion.span>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
+                            )}
+                            {message.text && <p className="whitespace-pre-wrap break-words text-[15px] leading-[21px]">{message.text}</p>}
+                          </div>
+                          <div className={`mt-1 flex items-center gap-2.5 px-1 text-xs text-faint ${mine ? "flex-row-reverse" : ""}`}>
+                            <span>{message.timestamp}</span>
+                            <button
+                              onClick={() => handleLikeMessage(message.id)}
+                              aria-label={message.isLiked ? "Remove flame" : "Give a flame"}
+                              aria-pressed={message.isLiked}
+                              className={`inline-flex items-center gap-1 rounded-full py-0.5 transition-colors ${message.isLiked ? "text-flame" : "hover:text-white"}`}
+                            >
+                              <Flame className={`h-3.5 w-3.5 ${message.isLiked ? "fill-flame" : ""}`} />
+                              {message.likes > 0 && <span className="tabular-nums">{message.likes}</span>}
+                            </button>
+                            {deletable && (
+                              <button onClick={() => handleUnsendMessage(message.id)} className="inline-flex items-center gap-1 hover:text-white">
+                                <Clock className="h-3 w-3" />
+                                Unsend · {getTimeRemaining(message)}
+                              </button>
+                            )}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+              <div ref={threadEndRef} />
+            </div>
 
-                {/* Message Input */}
-                <div className="p-4 border-t border-rule flex-shrink-0">
-                  {mediaPreview && (
-                    <div className="mb-3 relative inline-block">
-                      <div className="relative">
-                        {selectedMedia?.type.startsWith('video/') ? (
-                          <video
-                            src={mediaPreview}
-                            className="rounded-lg max-h-32 max-w-xs"
-                          />
-                        ) : (
-                          <img
-                            src={mediaPreview}
-                            alt="Preview"
-                            className="rounded-lg max-h-32 max-w-xs object-cover"
-                          />
-                        )}
-                        <button
-                          onClick={handleRemoveMedia}
-                          className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 rounded-full p-1"
-                        >
-                          <X className="h-4 w-4 text-white" />
-                        </button>
-                      </div>
-                    </div>
+            <div className="shrink-0 border-t border-rule p-2.5 sm:p-3">
+              {mediaPreview && (
+                <div className="relative mb-2 ml-1 inline-block">
+                  {selectedMedia?.type.startsWith("video/") ? (
+                    <video src={mediaPreview} className="max-h-28 rounded-[12px]" />
+                  ) : (
+                    <img src={mediaPreview} alt="Photo to send" className="max-h-28 rounded-[12px] object-cover" />
                   )}
-                  <div className="flex gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*,video/*"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                    <Button
-                      onClick={() => fileInputRef.current?.click()}
-                      variant="outline"
-                      className="bg-raised border-rule hover:bg-raised text-white"
-                    >
-                      <ImagePlus className="h-4 w-4" />
-                    </Button>
-                    <Input
-                      placeholder="Type a message..."
-                      value={messageText}
-                      onChange={(e) => setMessageText(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && !isSending && handleSendMessage()}
-                      className="flex-1 bg-raised border-rule text-white placeholder:text-muted-text"
-                    />
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={isSending || (!messageText.trim() && !selectedMedia)}
-                      className="bg-white text-black hover:bg-[#e6e3df]"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center gap-6">
-                <MessageSquare className="h-10 w-10 text-faint" strokeWidth={1.5} />
-                <div className="text-center">
-                  <h3 className="text-white text-base font-semibold mb-1">Your messages</h3>
-                  <p className="text-muted-text text-sm mb-4">Select a conversation to start messaging</p>
-                  <Button
-                    onClick={() => {
-                      if (conversations.length > 0) {
-                        const conv = conversations[0];
-                        const otherId = conv.id?.split(":")[2] || conv.userId;
-                        const resolved = otherId !== currentUserId ? allUsers.find(u => u.id === otherId) : null;
-                        setSelectedConversation({ ...conv, userId: otherId, userName: resolved?.name || conv.userName || "User", userAvatar: resolved?.avatar || conv.userAvatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${otherId}` });
-                      }
-                    }}
-                    className="bg-white text-black hover:bg-[#e6e3df]"
+                  <button
+                    onClick={handleRemoveMedia}
+                    aria-label="Remove attachment"
+                    className="absolute -right-2 -top-2 grid h-7 w-7 place-items-center rounded-full bg-white text-black"
                   >
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Start Messaging
-                  </Button>
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
+              )}
+              <div className="flex items-end gap-2">
+                <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Add a photo or video"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-text hover:bg-raised hover:text-white"
+                >
+                  <ImagePlus className="h-5 w-5" />
+                </button>
+                <Input
+                  placeholder="Message"
+                  aria-label="Message"
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !isSending && handleSendMessage()}
+                  className="h-10 flex-1 rounded-full border-transparent bg-raised px-4 text-[15px] text-white placeholder:text-faint"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={isSending || (!messageText.trim() && !selectedMedia)}
+                  aria-label="Send"
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-black transition-opacity disabled:opacity-40"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
               </div>
-            )}
-      </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+            <MessageSquare className="mb-3 h-10 w-10 text-faint" strokeWidth={1.5} />
+            <h2 className="text-base font-semibold text-white">Your messages</h2>
+            <p className="mt-1 text-sm text-muted-text">
+              {conversations.length > 0 ? "Pick a conversation on the left." : "Message someone from their profile to start a chat."}
+            </p>
+          </div>
+        )}
+      </section>
     </div>
 
     {/* Delete Confirmation Dialog */}
@@ -1109,7 +888,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-surface p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
           onClick={() => setEnlargedImage(null)}
         >
           <motion.div
@@ -1121,9 +900,10 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
           >
             <button
               onClick={() => setEnlargedImage(null)}
-              className="absolute -top-4 -right-4 bg-red-500 hover:bg-red-600 rounded-full p-2 transition-colors z-10"
+              aria-label="Close photo"
+              className="absolute -top-4 -right-4 z-10 grid h-9 w-9 place-items-center rounded-full bg-white text-black"
             >
-              <X className="h-5 w-5 text-white" />
+              <X className="h-5 w-5" />
             </button>
             <img
               src={enlargedImage}
