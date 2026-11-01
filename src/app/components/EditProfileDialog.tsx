@@ -4,9 +4,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
-import { Switch } from "./ui/switch";
-import { Avatar } from "./ui/avatar";
-import { Edit2, Upload, Loader2, X, Plus } from "lucide-react";
+import { Edit2, Loader2, X, Plus, Camera, Link as LinkIcon, Globe, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 interface EditProfileDialogProps {
@@ -96,7 +94,7 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
     reader.onloadend = () => {
       setAvatar(reader.result as string);
       setIsUploading(false);
-      toast.success('Image uploaded successfully!');
+      
     };
     reader.onerror = () => {
       toast.error('Failed to upload image');
@@ -129,155 +127,180 @@ export function EditProfileDialog({ user, onUpdateProfile }: EditProfileDialogPr
     }
   };
 
+  const filledLinks = websiteLinks.filter(link => link.trim() !== "");
+  const fieldClass =
+    "h-11 rounded-xl border-transparent bg-raised px-3.5 text-[15px] text-white placeholder:text-faint focus-visible:border-[#6a6460]";
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : handleCancel())}>
       <DialogTrigger asChild>
         <Button variant="outline" className="gap-2">
           <Edit2 className="h-4 w-4" />
           Edit Profile
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto bg-surface border-rule text-white">
-        <DialogHeader>
-          <DialogTitle>Edit Profile</DialogTitle>
-          <DialogDescription>
-            Update your profile information and privacy settings
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]">
+        <DialogHeader className="px-6 pt-6 pb-4 text-left">
+          <DialogTitle className="text-xl font-semibold">Edit profile</DialogTitle>
+          <DialogDescription className="text-muted-text">
+            This is how people see you across Streakz.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-6 py-4">
-          {/* Avatar Section */}
-          <div className="space-y-2">
-            <Label>Profile Picture</Label>
+
+        <div className="flex-1 space-y-6 overflow-y-auto px-6 pb-6">
+          {/* Live preview of the profile card, with the photo control on the photo itself */}
+          <section className="rounded-[18px] bg-raised p-4" aria-label="Profile preview">
             <div className="flex items-center gap-4">
-              <Avatar className="h-20 w-20">
-                <img src={avatar} alt={name} className="object-cover" />
-              </Avatar>
-              <div className="flex-1 space-y-2">
-                <div className="flex gap-2">
-                  <label className="flex-1">
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileUpload}
-                      disabled={isUploading}
-                      className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-flame file:text-white file:cursor-pointer hover:file:bg-flame text-[rgb(0,0,0)]"
-                    />
-                  </label>
-                </div>
-                <p className="text-xs text-body">
-                  {isUploading ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Uploading image...
-                    </span>
-                  ) : (
-                    'Upload an image (max 5MB)'
-                  )}
-                </p>
+              <label className="group relative h-[72px] w-[72px] shrink-0 cursor-pointer overflow-hidden rounded-full">
+                <img src={avatar} alt="" className="h-full w-full object-cover" />
+                <span className="absolute inset-0 grid place-items-center bg-black/55 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  {isUploading ? <Loader2 className="h-5 w-5 animate-spin text-white" /> : <Camera className="h-5 w-5 text-white" />}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className="sr-only"
+                  aria-label="Change profile photo"
+                />
+              </label>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-base font-semibold text-white">{name.trim() || "Your name"}</p>
+                <p className="line-clamp-2 text-sm text-body">{bio.trim() || "No bio yet"}</p>
+                {filledLinks[0] && (
+                  <p className="mt-1 flex items-center gap-1.5 truncate text-[13px] text-muted-text">
+                    <LinkIcon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{filledLinks[0].replace(/^https?:\/\//, "")}</span>
+                    {filledLinks.length > 1 && <span className="shrink-0 text-faint">+{filledLinks.length - 1}</span>}
+                  </p>
+                )}
               </div>
             </div>
-          </div>
+            <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full border border-[#6a6460] px-3.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#363330] focus-within:ring-2 focus-within:ring-white">
+              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+              {isUploading ? "Uploading..." : "Change photo"}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+                className="sr-only"
+                aria-describedby="photo-limit"
+              />
+            </label>
+            <span id="photo-limit" className="ml-3 text-xs text-faint">Images up to 5 MB</span>
+          </section>
 
           {/* Name */}
           <div className="space-y-2">
-            <Label htmlFor="edit-name">Name</Label>
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="edit-name" className="text-sm text-white">Name</Label>
+              <span className="text-xs text-faint tabular-nums">{name.length}/50</span>
+            </div>
             <Input
               id="edit-name"
               placeholder="Your name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              maxLength={50} className="text-[rgb(0,0,0)]"
+              maxLength={50}
+              className={fieldClass}
             />
           </div>
 
           {/* Bio */}
           <div className="space-y-2">
-            <Label htmlFor="edit-bio">Bio</Label>
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="edit-bio" className="text-sm text-white">Bio</Label>
+              <span className={`text-xs tabular-nums ${bio.length >= 190 ? "text-flame" : "text-faint"}`}>{bio.length}/200</span>
+            </div>
             <Textarea
               id="edit-bio"
-              placeholder="Tell us about yourself..."
+              placeholder="What are you building a streak in?"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              rows={4}
-              maxLength={200} className="text-[rgb(0,0,0)]"
+              rows={3}
+              maxLength={200}
+              className="min-h-[88px] rounded-xl border-transparent bg-raised px-3.5 py-3 text-[15px] leading-[22px] text-white placeholder:text-faint focus-visible:border-[#6a6460] focus-visible:ring-0"
             />
-            <p className="text-xs text-muted-foreground text-right">
-              {bio.length}/200
-            </p>
           </div>
 
           {/* Website Links */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Website Links</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={addLink}
-                className="h-8 gap-1 text-flame hover:text-flame hover:bg-raised"
-                disabled={websiteLinks.length >= 5}
-              >
-                <Plus className="h-4 w-4" />
-                Add Link
-              </Button>
+            <div className="flex items-baseline justify-between">
+              <Label className="text-sm text-white">Links</Label>
+              <span className="text-xs text-faint tabular-nums">{websiteLinks.length} of 5</span>
             </div>
             <div className="space-y-2">
               {websiteLinks.map((link, index) => (
-                <div key={index} className="flex gap-2">
+                <div key={index} className="relative">
+                  <LinkIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" />
                   <Input
                     type="url"
-                    placeholder="https://yourwebsite.com"
+                    placeholder="yourwebsite.com"
                     value={link}
                     onChange={(e) => handleLinkChange(index, e.target.value)}
-                    className="text-[rgb(0,0,0)] flex-1"
+                    aria-label={`Link ${index + 1}`}
+                    className={`${fieldClass} pl-10 pr-11`}
                   />
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="icon"
                     onClick={() => removeLink(index)}
-                    className="h-10 w-10 text-muted-text hover:text-red-400 hover:bg-raised"
+                    aria-label={`Remove link ${index + 1}`}
+                    className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-faint transition-colors hover:bg-[#363330] hover:text-white"
                   >
                     <X className="h-4 w-4" />
-                  </Button>
+                  </button>
                 </div>
               ))}
             </div>
-            <p className="text-xs text-body">
-              Add up to 5 links (website, portfolio, or social media)
-            </p>
+            {websiteLinks.length < 5 && (
+              <button
+                type="button"
+                onClick={addLink}
+                className="inline-flex items-center gap-1.5 rounded-full px-1 py-1 text-sm font-medium text-muted-text transition-colors hover:text-white"
+              >
+                <Plus className="h-4 w-4" />
+                Add a link
+              </button>
+            )}
           </div>
 
-          {/* Privacy Toggle */}
-          <div className="flex items-center justify-between rounded-lg border border-rule bg-raised p-4 bg-[rgba(255,255,255,0.05)]">
-            <div className="space-y-0.5">
-              <Label htmlFor="privacy-toggle" className="cursor-pointer text-white">
-                Profile Status
-              </Label>
-              <p className="text-sm text-body">
-                {isPublic 
-                  ? "Your profile is visible to everyone" 
-                  : "Your profile is private"}
-              </p>
+          {/* Visibility */}
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-medium text-white">Who can see your profile</legend>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: true, label: "Public", hint: "Anyone on Streakz", Icon: Globe },
+                { value: false, label: "Private", hint: "Hidden from public view", Icon: Lock },
+              ].map(({ value, label, hint, Icon }) => (
+                <button
+                  key={label}
+                  type="button"
+                  role="radio"
+                  aria-checked={isPublic === value}
+                  onClick={() => setIsPublic(value)}
+                  className={`rounded-xl border-[1.5px] p-3 text-left transition-colors ${
+                    isPublic === value ? "border-white bg-raised" : "border-transparent bg-raised/60 hover:bg-raised"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 text-sm font-semibold text-white">
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-text">{hint}</span>
+                </button>
+              ))}
             </div>
-            <Switch
-              id="privacy-toggle"
-              checked={isPublic}
-              onCheckedChange={setIsPublic}
-            />
-          </div>
+          </fieldset>
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={handleCancel}>
+        <div className="flex justify-end gap-2 border-t border-rule px-6 py-4">
+          <Button variant="ghost" onClick={handleCancel} className="text-muted-text">
             Cancel
           </Button>
-          <Button 
-            onClick={handleSubmit} 
-            className="bg-white text-black hover:bg-[#e6e3df]"
-          >
-            Save Changes
+          <Button onClick={handleSubmit} disabled={isUploading || !name.trim()}>
+            Save changes
           </Button>
         </div>
       </DialogContent>

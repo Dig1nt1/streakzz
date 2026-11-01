@@ -210,7 +210,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                 placeholder="e.g., Morning Meditation Journey"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)} 
-                className="text-[rgb(0,0,0)]"
+               
               />
             </div>
 
@@ -222,7 +222,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3} 
-                className="text-[rgb(0,0,0)]"
+               
               />
             </div>
 
@@ -235,7 +235,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                     accept="image/*,video/*"
                     onChange={handleFileUpload}
                     disabled={isUploading}
-                    className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-flame file:text-white file:cursor-pointer hover:file:bg-flame text-[rgb(0,0,0)]"
+                    className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-flame file:text-white file:cursor-pointer hover:file:bg-flame"
                   />
                 </label>
                 <p className="text-xs text-body mt-2">
@@ -332,7 +332,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                         rows={3}
-                        className="text-[rgb(0,0,0)]"
+                       
                       />
                     </div>
 
@@ -345,7 +345,7 @@ export function CreatePostDialog({ accessToken, onCreatePost, onAddToStreak, use
                             accept="image/*,video/*"
                             onChange={handleFileUpload}
                             disabled={isUploading}
-                            className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-flame file:text-white file:cursor-pointer hover:file:bg-flame text-[rgb(0,0,0)]"
+                            className="cursor-pointer file:mr-4 file:px-2 file:py-1 file:rounded-md file:border-0 file:bg-flame file:text-white file:cursor-pointer hover:file:bg-flame"
                           />
                         </label>
                         <p className="text-xs text-body mt-2">
