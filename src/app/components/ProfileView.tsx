@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "./ui/dial
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { PostCard, Post } from "./PostCard";
 import { EditProfileDialog } from "./EditProfileDialog";
+import { StreakChain } from "./StreakChain";
 import { calculateAchievements } from "../utils/achievements";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
 
@@ -176,9 +177,42 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
   };
 
   const plural = (n: number, word: string) => `${word}${n === 1 ? "" : "s"}`;
-  const active = Number(user.activeStreaks) || 0;
+  const activePosts = posts.filter(p => !p.isClosed).sort((a, b) => b.streakCount - a.streakCount);
+  const active = activePosts.length;
   const longest = Number(user.longestStreak) || 0;
-  const total = Number(user.totalStreaks) || 0;
+  const unlockedCount = achievements.filter(a => a.unlocked).length;
+
+  // Days this person posted, from every streak day's timestamp
+  const DAY = 86400000;
+  const dayStart = (t: number) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const postedDays = new Set<number>();
+  posts.forEach(post => {
+    const stamps = post.streakDays?.length ? post.streakDays.map(d => d.postedAt) : [(post as any).createdAt];
+    stamps.forEach(stamp => {
+      const t = stamp ? Date.parse(stamp) : NaN;
+      if (!Number.isNaN(t)) postedDays.add(dayStart(t));
+    });
+  });
+  const today = dayStart(Date.now());
+  const WEEKS = 52;
+  const firstDay = today - (((new Date(today).getDay() + 6) % 7) + (WEEKS - 1) * 7) * DAY; // a Monday
+  const heatCells = Array.from({ length: WEEKS * 7 }, (_, i) => firstDay + i * DAY);
+  const last30 = heatCells.filter(t => t > today - 30 * DAY && t <= today && postedDays.has(t)).length;
+  let run = 0;
+  for (let t = postedDays.has(today) ? today : today - DAY; postedDays.has(t); t -= DAY) run++;
+  const monthLabels = heatCells
+    .filter((t, i) => i % 7 === 0 && new Date(t).getDate() <= 7 && i / 7 <= WEEKS - 3)
+    .map(t => ({ col: Math.round((t - firstDay) / DAY / 7), label: new Date(t).toLocaleDateString("en-US", { month: "short" }) }));
+
+  const joinedText = (() => {
+    const t = Date.parse(user.joined);
+    return Number.isNaN(t) ? user.joined : new Date(t).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  })();
+  const finding = posts.length === 0
+    ? (isOwnProfile ? "No streaks yet. Post your first one to start your chain." : "No streaks yet.")
+    : run > 0
+      ? `On a ${run}-${plural(run, "day").replace(/s$/, "")} run · posted on ${last30} of the last 30 days`
+      : `Posted on ${last30} of the last 30 days`;
 
   const actionsBlock = isOwnProfile ? (
     onUpdateProfile && <EditProfileDialog user={user} onUpdateProfile={onUpdateProfile} accessToken={accessToken ?? undefined} />
@@ -234,274 +268,251 @@ export function ProfileView({ user, posts, currentUserId, onLike, onLikeDay, onC
     </div>
   );
 
-  const counts = [
-    { full: "Active streaks", value: active, label: "active", short: "active", highlight: active > 0 },
-    { full: "Total streaks", value: total, label: plural(total, "streak"), short: plural(total, "streak") },
-    { full: "Longest streak", value: longest, label: `${plural(longest, "day")} best`, short: "best" },
-    { full: "Backers", value: backerCount, label: plural(backerCount, "backer"), short: plural(backerCount, "backer"), onClick: () => handleOpenBackingDialog('backers') },
-    { full: "Backing", value: backingCount, label: "backing", short: "backing", onClick: () => handleOpenBackingDialog('backing') },
-  ];
+  const openPost = (id: string) => setSelectedPostId(id);
+  const postThumb = (post: Post) => {
+    const image = post.streakDays?.[0]?.imageUrl || post.imageUrl;
+    const isVideo = (post.streakDays?.[0]?.mediaType || post.mediaType) === "video";
+    return isVideo
+      ? <video src={image} className="h-full w-full object-cover" muted playsInline />
+      : <img src={image} alt="" className="h-full w-full object-cover" />;
+  };
 
   return (
     <div className="space-y-[14px]">
-      {/* Profile header: photo, name and actions, one line of counts, then bio and links */}
-      <Card className="p-5 sm:p-7 gap-0 bg-surface">
-        <div className="flex items-center gap-5 sm:items-start sm:gap-8">
-          <div
-            className={`shrink-0 rounded-full p-[3px] ${active > 0 ? "bg-flame" : "bg-raised"}`}
-            title={active > 0 ? `${active} active ${plural(active, "streak")}` : undefined}
-          >
-            <div className="rounded-full bg-surface p-[3px]">
-              <img src={user.avatar} alt={user.name} className="h-[76px] w-[76px] rounded-full object-cover sm:h-[112px] sm:w-[112px]" />
-            </div>
+      {/* Object header: the person, one line of facts, their bio, and the actions */}
+      <Card className="gap-0 bg-surface p-4 sm:p-5">
+        <div className="flex items-start gap-4">
+          <div className={`shrink-0 rounded-full p-[2.5px] ${active > 0 ? "bg-flame" : "bg-raised"}`}>
+            <img src={user.avatar} alt="" className="h-16 w-16 rounded-full border-[3px] border-surface object-cover" />
           </div>
-
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <h1 className="truncate text-xl font-semibold text-white">{user.alias || user.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-lg font-semibold text-white">{user.alias || user.name}</h1>
               {!user.isPublic && user.isPublic !== undefined && (
-                <Badge variant="secondary" className="gap-1 text-xs">
-                  <Lock className="h-3 w-3" />
-                  Private
-                </Badge>
+                <Badge variant="secondary" className="gap-1 text-xs"><Lock className="h-3 w-3" />Private</Badge>
               )}
-              <div className="hidden sm:ml-auto sm:block">{actionsBlock}</div>
             </div>
-
-            {/* Counts, Instagram-style: number first, then the word */}
-            <dl className="mt-3 hidden flex-wrap gap-x-6 gap-y-1.5 text-[15px] sm:flex">
-              {counts.map(item => {
-                const inner = (
-                  <>
-                    <dt className="sr-only">{item.full}</dt>
-                    <dd className={`font-semibold tabular-nums ${item.highlight ? "text-flame" : "text-white"}`}>{item.value}</dd>
-                    <span className="text-muted-text">{item.label}</span>
-                  </>
-                );
-                return item.onClick ? (
-                  <button key={item.full} onClick={item.onClick} className="flex gap-1.5 hover:opacity-80">{inner}</button>
-                ) : (
-                  <div key={item.full} className="flex gap-1.5">{inner}</div>
-                );
-              })}
-            </dl>
-
-            <div className="mt-3 hidden sm:block">
-              {user.alias && user.alias !== user.name && <p className="text-sm font-semibold text-white">{user.name}</p>}
-              <p className="text-[15px] leading-[22px] text-body">{user.bio || "No bio yet"}</p>
-                {user.websiteLinks && user.websiteLinks.length > 0 && (
-                    <div className="flex items-center gap-2 text-muted-text text-sm mt-1">
-                      <ExternalLink className="h-4 w-4" />
-                      <div className="flex items-center gap-1">
-                        <a 
-                          href={user.websiteLinks[0].startsWith('http') ? user.websiteLinks[0] : `https://${user.websiteLinks[0]}`}
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-white underline underline-offset-4 decoration-[#6a6460] hover:decoration-white"
-                        >
-                          {user.websiteLinks[0].replace(/^https?:\/\//, '')}
-                        </a>
-                        {user.websiteLinks.length > 1 && (
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button className="text-muted-text hover:text-white transition-colors cursor-pointer ml-1">
-                                and {user.websiteLinks.length - 1} other{user.websiteLinks.length - 1 > 1 ? 's' : ''}
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-80 bg-surface border-rule text-white">
-                              <div className="space-y-2">
-                                <h4 className="font-medium mb-3">All Links</h4>
-                                {user.websiteLinks.map((link, index) => (
-                                  <a
-                                    key={index}
-                                    href={link.startsWith('http') ? link : `https://${link}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-2 text-white underline underline-offset-4 decoration-[#6a6460] hover:decoration-white text-sm"
-                                  >
-                                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                                    <span className="truncate">{link.replace(/^https?:\/\//, '')}</span>
-                                  </a>
-                                ))}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        )}
-                      </div>
-                    </div>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[13px] text-muted-text">
+              {user.alias && user.alias !== user.name && <><span>{user.name}</span><span aria-hidden>·</span></>}
+              <span>Joined {joinedText}</span>
+              {user.websiteLinks && user.websiteLinks.length > 0 && (
+                <>
+                  <span aria-hidden>·</span>
+                  <a
+                    href={user.websiteLinks[0].startsWith("http") ? user.websiteLinks[0] : `https://${user.websiteLinks[0]}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-white underline decoration-[#6a6460] underline-offset-4 hover:decoration-white"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    {user.websiteLinks[0].replace(/^https?:\/\//, "")}
+                  </a>
+                  {user.websiteLinks.length > 1 && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="hover:text-white">+{user.websiteLinks.length - 1}</button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 border-rule bg-raised text-white">
+                        <div className="space-y-2">
+                          {user.websiteLinks.map((link, index) => (
+                            <a key={index} href={link.startsWith("http") ? link : `https://${link}`} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-sm text-white underline decoration-[#6a6460] underline-offset-4 hover:decoration-white">
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{link.replace(/^https?:\/\//, "")}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   )}
-            </div>
+                </>
+              )}
+            </p>
+            <p className="mt-2 text-[15px] leading-[22px] text-body">{user.bio || "No bio yet"}</p>
           </div>
+          <div className="hidden shrink-0 sm:block">{actionsBlock}</div>
         </div>
-
-        {/* Phones: counts in five even columns, then name, bio, links and actions */}
-        <dl className="mt-5 grid grid-cols-5 text-center sm:hidden">
-          {counts.map(item => {
-            const inner = (
-              <>
-                <dt className="sr-only">{item.full}</dt>
-                <dd className={`text-[17px] font-semibold leading-6 tabular-nums ${item.highlight ? "text-flame" : "text-white"}`}>{item.value}</dd>
-                <span className="block text-xs text-muted-text">{item.short}</span>
-              </>
-            );
-            return item.onClick ? (
-              <button key={item.full} onClick={item.onClick} className="hover:opacity-80">{inner}</button>
-            ) : (
-              <div key={item.full}>{inner}</div>
-            );
-          })}
-        </dl>
-        <div className="mt-4 sm:hidden">
-          {user.alias && user.alias !== user.name && <p className="text-sm font-semibold text-white">{user.name}</p>}
-          <p className="text-[15px] leading-[22px] text-body">{user.bio || "No bio yet"}</p>
-                {user.websiteLinks && user.websiteLinks.length > 0 && (
-                  <div className="flex items-center gap-2 text-muted-text text-sm mt-1">
-                    <ExternalLink className="h-4 w-4" />
-                    <div className="flex items-center gap-1">
-                      <a 
-                        href={user.websiteLinks[0].startsWith('http') ? user.websiteLinks[0] : `https://${user.websiteLinks[0]}`}
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-white underline underline-offset-4 decoration-[#6a6460] hover:decoration-white"
-                      >
-                        {user.websiteLinks[0].replace(/^https?:\/\//, '')}
-                      </a>
-                      {user.websiteLinks.length > 1 && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button className="text-muted-text hover:text-white transition-colors cursor-pointer ml-1">
-                              and {user.websiteLinks.length - 1} other{user.websiteLinks.length - 1 > 1 ? 's' : ''}
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-80 bg-surface border-rule text-white">
-                            <div className="space-y-2">
-                              <h4 className="font-medium mb-3">All Links</h4>
-                              {user.websiteLinks.map((link, index) => (
-                                <a
-                                  key={index}
-                                  href={link.startsWith('http') ? link : `https://${link}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-2 text-white underline underline-offset-4 decoration-[#6a6460] hover:decoration-white text-sm"
-                                >
-                                  <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                                  <span className="truncate">{link.replace(/^https?:\/\//, '')}</span>
-                                </a>
-                              ))}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    </div>
-                  </div>
-                )}
-          <div className="mt-4 [&_button]:w-full [&>div]:grid [&>div]:grid-cols-2">{actionsBlock}</div>
-        </div>
+        <div className="mt-4 sm:hidden [&_button]:w-full [&>div]:grid [&>div]:grid-cols-2">{actionsBlock}</div>
       </Card>
 
-      {/* Posts Section */}
-      <Tabs defaultValue="posts" className="w-full">
-        <TabsList>
-          <TabsTrigger value="posts">Posts</TabsTrigger>
-          <TabsTrigger value="achievements">Achievements</TabsTrigger>
+      <Tabs defaultValue="overview" className="w-full gap-0">
+        <TabsList className="h-auto w-full justify-start gap-6 rounded-none border-b border-rule bg-transparent p-0">
+          {[["overview", "Overview"], ["posts", `Posts ${posts.length}`], ["achievements", `Achievements ${unlockedCount}/${achievements.length}`]].map(([value, label]) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="relative h-10 flex-none rounded-none border-0 bg-transparent px-0 text-sm font-medium text-[#bbbbbb] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 hover:text-white data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:after:bg-white"
+            >
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="posts" className="mt-6">
+        {/* Overview: a six-column grid whose spans change by row and share the same edges */}
+        <TabsContent value="overview" className="mt-[14px]">
+          <div className="grid grid-cols-3 gap-[10px] sm:grid-cols-6 sm:gap-[14px]">
+            <section className="rounded-[16px] bg-surface p-3 sm:rounded-[20px] sm:p-5 sm:col-span-2">
+              <p className="text-xs text-muted-text sm:text-[13px]">Active streaks</p>
+              <p className={`mt-1 text-[30px] font-semibold leading-9 tabular-nums ${active > 0 ? "text-flame" : "text-white"}`}>{active}</p>
+              <p className="mt-1 hidden text-xs text-faint sm:block">{posts.length - active} ended · {posts.length} in total</p>
+            </section>
+            <section className="rounded-[16px] bg-surface p-3 sm:rounded-[20px] sm:p-5 sm:col-span-2">
+              <p className="text-xs text-muted-text sm:text-[13px]">Longest streak</p>
+              <p className="mt-1 text-2xl font-medium leading-9 tabular-nums text-white">{longest}<span className="ml-1 text-sm font-normal text-faint">{plural(longest, "day")}</span></p>
+              <p className="mt-1 hidden text-xs text-faint sm:block">{run > 0 ? `Current run ${run} ${plural(run, "day")}` : "No current run"}</p>
+            </section>
+            <section className="rounded-[16px] bg-surface p-3 sm:rounded-[20px] sm:p-5 sm:col-span-2">
+              <p className="text-xs text-muted-text sm:text-[13px]">Backers</p>
+              <button onClick={() => handleOpenBackingDialog('backers')} className="mt-1 block text-2xl font-medium leading-9 tabular-nums text-white hover:underline underline-offset-4">{backerCount}</button>
+              <button onClick={() => handleOpenBackingDialog('backing')} className="mt-1 hidden text-xs text-faint hover:text-white sm:inline">Backing <span className="tabular-nums">{backingCount}</span></button>
+            </section>
+
+            <section className="rounded-[20px] bg-surface p-5 col-span-3 sm:col-span-6" aria-labelledby="activity-h">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id="activity-h" className="text-base font-semibold text-white">Streak activity</h2>
+                <span className="text-xs text-faint">Last 12 months</span>
+              </div>
+              <p className="mb-4 text-sm text-body">{finding}</p>
+              <div className="overflow-x-auto" ref={el => { if (el) el.scrollLeft = el.scrollWidth; }}>
+                <div className="min-w-[680px]">
+                  <div className="grid gap-[3px]" style={{ gridTemplateRows: "repeat(7, 12px)", gridAutoFlow: "column", gridAutoColumns: "minmax(0, 1fr)" }} role="img" aria-label={`Posted on ${postedDays.size} days`}>
+                    {heatCells.map(t => (
+                      <span
+                        key={t}
+                        title={new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        className={`rounded-[3px] ${t > today ? "bg-transparent" : postedDays.has(t) ? "bg-flame" : "bg-raised"} `}
+                      />
+                    ))}
+                  </div>
+                  <div className="relative mt-2 h-4 text-xs text-faint">
+                    {monthLabels.map(m => (
+                      <span key={m.col} className="absolute" style={{ left: `${(m.col / WEEKS) * 100}%` }}>{m.label}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex gap-4 text-xs text-faint">
+                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[2px] bg-flame" />Posted</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[2px] bg-raised" />No post</span>
+              </div>
+            </section>
+
+            <section className="flex flex-col rounded-[20px] bg-surface p-5 col-span-3 sm:col-span-3" aria-labelledby="active-h">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 id="active-h" className="text-base font-semibold text-white">Active streaks</h2>
+                <span className="text-xs tabular-nums text-faint">{active}</span>
+              </div>
+              {activePosts.length === 0 ? (
+                <p className="text-sm text-muted-text">{isOwnProfile ? "Nothing running. Start a streak with the + button." : "No active streaks."}</p>
+              ) : (
+                <ul className="divide-y divide-rule">
+                  {activePosts.slice(0, 3).map(post => (
+                    <li key={post.id}>
+                      <button onClick={() => openPost(post.id)} className="group w-full py-3 text-left">
+                        <span className="flex items-baseline justify-between gap-3">
+                          <span className="truncate text-sm font-medium text-white underline-offset-4 group-hover:underline">{post.title}</span>
+                          <span className="shrink-0 text-[13px] tabular-nums text-faint">Day {post.streakCount}</span>
+                        </span>
+                        <StreakChain days={post.streakCount} className="mt-2" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {activePosts.length > 3 && (
+                <p className="mt-auto pt-2 text-xs text-faint">+{activePosts.length - 3} more in Posts</p>
+              )}
+            </section>
+
+            <section className="flex flex-col rounded-[20px] bg-surface p-5 col-span-3 sm:col-span-3" aria-labelledby="ach-h">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 id="ach-h" className="text-base font-semibold text-white">Achievements</h2>
+                <span className="text-xs tabular-nums text-faint">{unlockedCount} of {achievements.length}</span>
+              </div>
+              <div className="h-2 rounded-full bg-raised" role="progressbar" aria-valuemin={0} aria-valuemax={achievements.length} aria-valuenow={unlockedCount} aria-label="Achievements unlocked">
+                <div className="h-full rounded-full bg-white" style={{ width: `${achievements.length ? (unlockedCount / achievements.length) * 100 : 0}%` }} />
+              </div>
+              <p className="mt-4 text-[13px] text-muted-text">{unlockedCount === achievements.length ? "Every achievement unlocked." : "Up next"}</p>
+              <ul className="divide-y divide-rule">
+                {achievements.filter(x => !x.unlocked).slice(0, 2).map(item => (
+                  <li key={item.id} className="py-2.5">
+                    <span className="block text-sm font-medium text-white">{item.name}</span>
+                    <span className="block text-[13px] text-faint">{item.description}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="rounded-[20px] bg-surface p-5 col-span-3 sm:col-span-6" aria-labelledby="recent-h">
+              <div className="mb-3 flex items-baseline justify-between">
+                <h2 id="recent-h" className="text-base font-semibold text-white">Recent posts</h2>
+                <span className="text-xs tabular-nums text-faint">{posts.length} {plural(posts.length, "streak")}</span>
+              </div>
+              {posts.length === 0 ? (
+                <p className="text-sm text-muted-text">No posts yet.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-[14px] sm:[grid-template-columns:repeat(var(--cols),minmax(0,1fr))]" style={{ ["--cols" as any]: Math.max(2, Math.min(posts.length, 4)) }}>
+                  {posts.slice(0, 4).map(post => (
+                    <button key={post.id} onClick={() => openPost(post.id)} className="group text-left">
+                      <span className="block aspect-[4/3] overflow-hidden rounded-[14px] bg-raised">{postThumb(post)}</span>
+                      <span className="mt-2 block truncate text-sm font-medium text-white group-hover:underline underline-offset-4">{post.title}</span>
+                      <span className="block text-xs text-faint">{post.streakCount} {plural(post.streakCount, "day")} · {post.isClosed ? "Ended" : post.category}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="posts" className="mt-[14px]">
           {posts.length === 0 ? (
-            <Card className="p-8 text-center border-rule bg-surface">
-              <p className="text-body">No posts yet</p>
-            </Card>
+            <section className="rounded-[20px] bg-surface p-8 text-center text-muted-text">No posts yet</section>
           ) : (
-            <div className="grid grid-cols-3 gap-1">
-              {posts.map((post) => {
-                const displayImage = post.streakDays?.[0]?.imageUrl || post.imageUrl;
-                const displayMediaType = post.streakDays?.[0]?.mediaType || post.mediaType;
-                // Calculate total likes for parent streaks
-                const totalLikes = post.isParentStreak && post.streakDays && post.streakDays.length > 0
+            <div className="grid grid-cols-2 gap-[14px] sm:grid-cols-3">
+              {posts.map(post => {
+                const totalLikes = post.isParentStreak && post.streakDays?.length
                   ? post.streakDays.reduce((sum, day) => sum + (day.likes || 0), 0)
                   : (post.likes || 0);
                 return (
-                <div 
-                  key={post.id} 
-                  className="relative aspect-square group cursor-pointer overflow-hidden bg-raised"
-                  onClick={() => setSelectedPostId(post.id)}
-                >
-                  {displayMediaType === 'video' ? (
-                    <video 
-                      src={displayImage} 
-                      className="w-full h-full object-contain bg-black"
-                      muted
-                      playsInline
-                    />
-                  ) : (
-                    <img 
-                      src={displayImage} 
-                      alt={post.title}
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                  {/* Multi-day indicator */}
-                  {post.isParentStreak && post.streakDays && post.streakDays.length > 1 && (
-                    <div className="absolute top-2 right-2 bg-surface px-2 py-1 rounded-full">
-                      <span className="text-white text-xs tabular-nums">{post.streakDays.length} days</span>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-surface opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                    <div className="flex items-center gap-1 text-white">
-                      <Flame className="h-5 w-5 fill-white" />
-                      <span className="font-semibold">{totalLikes}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-white">
-                      <MessageCircle className="h-5 w-5 fill-white" />
-                      <span className="font-semibold">{post.comments.length}</span>
-                    </div>
-                  </div>
-                </div>
-              );
+                  <button key={post.id} onClick={() => openPost(post.id)} className="group rounded-[20px] bg-surface p-2 text-left hover:bg-[#1f1d1b]">
+                    <span className="block aspect-[4/3] overflow-hidden rounded-[14px] bg-raised">{postThumb(post)}</span>
+                    <span className="block px-2 pt-2.5 pb-1.5">
+                      <span className="block truncate text-sm font-medium text-white">{post.title}</span>
+                      <span className="mt-0.5 flex items-center gap-3 text-xs text-faint">
+                        <span className="tabular-nums">{post.streakCount} {plural(post.streakCount, "day")}</span>
+                        <span className="inline-flex items-center gap-1 tabular-nums"><Flame className="h-3 w-3" />{totalLikes}</span>
+                        <span className="inline-flex items-center gap-1 tabular-nums"><MessageCircle className="h-3 w-3" />{post.comments.length}</span>
+                        {post.isClosed && <span className="ml-auto rounded-full bg-raised px-2 py-0.5 text-[11px] text-muted-text">Ended</span>}
+                      </span>
+                    </span>
+                  </button>
+                );
               })}
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="achievements" className="mt-6">
-          {achievements.filter(a => a.unlocked).length === 0 ? (
-            <Card className="p-8 text-center border-rule bg-surface">
-              <Trophy className="h-12 w-12 mx-auto mb-3 text-faint" />
-              <p className="text-body mb-2">No achievements yet</p>
-              <p className="text-muted-text text-sm">Complete streaks and engage with the community to unlock achievements!</p>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {achievements.map((achievement) => (
-                <Card 
-                  key={achievement.id} 
-                  className={`p-4 text-center border-rule transition-all ${
-                    achievement.unlocked 
-                      ? 'bg-surface hover:bg-raised' 
-                      : 'bg-raised opacity-60'
-                  }`}
-                >
-                  <div className={`h-12 w-12 mx-auto mb-2 rounded-full flex items-center justify-center text-2xl ${
-                    achievement.unlocked 
-                      ? 'bg-raised' 
-                      : 'bg-gray-700'
-                  }`}>
-                    {achievement.unlocked ? (
-                      <span>{achievement.icon}</span>
-                    ) : (
-                      <LockIcon className="h-6 w-6 text-muted-text" />
-                    )}
-                  </div>
-                  <p className={`text-sm mb-1 ${achievement.unlocked ? 'text-white' : 'text-faint'}`}>
-                    {achievement.name}
-                  </p>
-                  <p className={`text-xs ${achievement.unlocked ? 'text-muted-text' : 'text-faint'}`}>
-                    {achievement.description}
-                  </p>
-                </Card>
-              ))}
+        <TabsContent value="achievements" className="mt-[14px]">
+          <section className="rounded-[20px] bg-surface p-5">
+            <div className="mb-2 flex items-baseline justify-between">
+              <h2 className="text-base font-semibold text-white">Achievements</h2>
+              <span className="text-xs tabular-nums text-faint">{unlockedCount} of {achievements.length} unlocked</span>
             </div>
-          )}
+            <ul className="grid gap-x-10 sm:grid-cols-2">
+              {achievements.map(achievement => (
+                <li key={achievement.id} className="flex items-center justify-between gap-4 border-t border-rule py-3.5 first:border-t-0 sm:[&:nth-child(2)]:border-t-0">
+                  <span className="min-w-0">
+                    <span className={`block text-sm font-semibold ${achievement.unlocked ? "text-white" : "text-muted-text"}`}>{achievement.name}</span>
+                    <span className="block text-[13px] text-faint">{achievement.description}</span>
+                  </span>
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${achievement.unlocked ? "bg-positive-tint text-positive" : "bg-raised text-muted-text"}`}>
+                    {achievement.unlocked ? "Unlocked" : "Locked"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
         </TabsContent>
       </Tabs>
 
