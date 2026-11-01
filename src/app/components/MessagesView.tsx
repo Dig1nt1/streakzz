@@ -61,6 +61,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isSendingRef = useRef(false);
   // Tracks the currently open conversation so late poll responses for another one are ignored
@@ -623,7 +624,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
     const diff = Math.round((today.getTime() - day.getTime()) / 86400000);
     if (diff === 0) return "Today";
     if (diff === 1) return "Yesterday";
-    return day.toLocaleDateString("en-US", { weekday: diff < 7 ? "long" : undefined, month: diff < 7 ? undefined : "short", day: diff < 7 ? undefined : "numeric" });
+    return day.toLocaleDateString("en-US", { weekday: diff < 7 ? "long" : undefined, month: diff < 7 ? undefined : "short", day: diff < 7 ? undefined : "numeric", year: day.getFullYear() !== today.getFullYear() ? "numeric" : undefined });
   };
 
   // On wide screens the chat pane is always visible, so open the most recent conversation
@@ -635,10 +636,29 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
 
   const thread = selectedConversation ? resolveConversation(selectedConversation) : null;
 
+  // One clock format everywhere, taken from when the message was sent
+  const clockTime = (message: Message) =>
+    message.sentAt > 0 ? new Date(message.sentAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : message.timestamp;
+
+  // Messages from the same person within five minutes read as one run: one time stamp at its end
+  const sameRun = (a?: Message, b?: Message) =>
+    !!a && !!b && a.senderId === b.senderId && Math.abs((b.sentAt || 0) - (a.sentAt || 0)) < 5 * 60000;
+
+  // Inbox times: the clock today, then Yesterday, the weekday, the date
+  const listTime = (conversation: Conversation) => {
+    const last = conversation.messages[conversation.messages.length - 1];
+    const parsed = last?.sentAt || Date.parse(conversation.lastMessageTime);
+    if (!parsed || Number.isNaN(parsed)) return conversation.lastMessageTime;
+    const label = dayLabel(parsed);
+    if (label === "Today") return new Date(parsed).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    if (label === "Yesterday" || /\d/.test(label)) return label;
+    return label.slice(0, 3); // weekday, shortened
+  };
+
   return (
     <>
     {/* Inbox: on a phone one region at a time (list, then the open chat); side by side from lg up */}
-    <div className="grid h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-[420px] grid-cols-1 gap-[14px] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[340px_minmax(0,1fr)]">
+    <div className="grid h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-[420px] grid-cols-1 gap-[14px] lg:h-[calc(100dvh-4rem)] lg:grid-cols-[360px_minmax(0,1fr)]">
       {/* Conversation list */}
       <section
         aria-label="Conversations"
@@ -683,7 +703,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
                           <span className={`truncate text-[15px] text-white ${unread ? "font-semibold" : "font-medium"}`}>{name}</span>
-                          <span className={`shrink-0 text-xs ${unread ? "text-white" : "text-faint"}`}>{conversation.lastMessageTime}</span>
+                          <span className={`shrink-0 text-xs ${unread ? "text-white" : "text-faint"}`}>{listTime(conversation)}</span>
                         </span>
                         <span className="mt-0.5 flex items-center gap-2">
                           <span className={`truncate text-sm ${unread ? "text-white" : "text-muted-text"}`}>{conversation.lastMessage}</span>
@@ -747,26 +767,37 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                   <p className="mt-1 text-sm text-muted-text">Say hi and cheer on their streak.</p>
                 </div>
               ) : (
-                <ol className="flex min-h-full flex-col justify-end gap-1">
+                <ol className="flex min-h-full flex-col justify-end">
                   {selectedConversation.messages.map((message, index) => {
+                    const messages = selectedConversation.messages;
                     const mine = message.senderId === currentUserId || message.senderId === "current";
-                    const previous = selectedConversation.messages[index - 1];
+                    const previous = messages[index - 1];
+                    const next = messages[index + 1];
                     const newDay = !previous || dayLabel(previous.sentAt) !== dayLabel(message.sentAt);
-                    const sameSenderAsPrevious = previous && !newDay && previous.senderId === message.senderId;
+                    const startsRun = newDay || !sameRun(previous, message);
+                    const endsRun = !next || dayLabel(next.sentAt) !== dayLabel(message.sentAt) || !sameRun(message, next);
                     const deletable = mine && canDeleteMessage(message) && !message.id.startsWith("temp-");
+                    const active = activeMessageId === message.id;
+                    const corner = mine
+                      ? `${startsRun ? "" : "rounded-tr-md"} ${endsRun ? "" : "rounded-br-md"}`
+                      : `${startsRun ? "" : "rounded-tl-md"} ${endsRun ? "" : "rounded-bl-md"}`;
                     return (
                       <li key={message.id} className="flex flex-col">
                         {newDay && message.sentAt > 0 && (
-                          <span className="my-3 self-center text-xs text-faint">{dayLabel(message.sentAt)}</span>
+                          <span className={`mb-1 self-center text-xs font-medium text-faint ${index > 0 ? "mt-6" : ""}`}>{dayLabel(message.sentAt)}</span>
                         )}
-                        <div className={`flex max-w-[82%] flex-col sm:max-w-[70%] ${mine ? "items-end self-end" : "items-start self-start"} ${sameSenderAsPrevious ? "" : "mt-2"}`}>
-                          <div className={`overflow-hidden rounded-[20px] ${mine ? "rounded-br-md bg-[#f2efe9] text-[#0e0d0c]" : "rounded-bl-md bg-raised text-white"} ${message.mediaUrl && !message.text ? "" : "px-3.5 py-2"}`}>
+                        <div className={`group flex max-w-[82%] items-center gap-1.5 sm:max-w-[68%] ${mine ? "flex-row-reverse self-end" : "self-start"} ${startsRun ? "mt-2.5" : "mt-0.5"}`}>
+                          <div
+                            onClick={() => setActiveMessageId(active ? null : message.id)}
+                            onDoubleClick={() => { if (!message.isLiked) handleLikeMessage(message.id); }}
+                            className={`relative cursor-pointer select-text overflow-hidden rounded-[20px] ${corner} ${mine ? "bg-[#f2efe9] text-[#0e0d0c]" : "bg-raised text-white"} ${message.mediaUrl && !message.text ? "" : "px-3.5 py-2"}`}
+                          >
                             {message.mediaUrl && (
                               <div className={message.text ? "-mx-3.5 -mt-2 mb-2" : ""}>
                                 {message.mediaType === "video" ? (
                                   <video src={message.mediaUrl} controls className="max-h-72 w-full" />
                                 ) : (
-                                  <button onClick={() => setEnlargedImage(message.mediaUrl!)} aria-label="Open photo" className="block">
+                                  <button onClick={(e) => { e.stopPropagation(); setEnlargedImage(message.mediaUrl!); }} aria-label="Open photo" className="block">
                                     <img src={message.mediaUrl} alt="Shared photo" className="max-h-72 w-full object-cover" />
                                   </button>
                                 )}
@@ -774,25 +805,59 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                             )}
                             {message.text && <p className="whitespace-pre-wrap break-words text-[15px] leading-[21px]">{message.text}</p>}
                           </div>
-                          <div className={`mt-1 flex items-center gap-2.5 px-1 text-xs text-faint ${mine ? "flex-row-reverse" : ""}`}>
-                            <span>{message.timestamp}</span>
+                          {/* Pointer devices: flame and unsend appear beside the bubble on hover */}
+                          <div className="hidden shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:hover)]:flex">
                             <button
                               onClick={() => handleLikeMessage(message.id)}
                               aria-label={message.isLiked ? "Remove flame" : "Give a flame"}
                               aria-pressed={message.isLiked}
-                              className={`inline-flex items-center gap-1 rounded-full py-0.5 transition-colors ${message.isLiked ? "text-flame" : "hover:text-white"}`}
+                              className={`grid h-8 w-8 place-items-center rounded-full hover:bg-raised ${message.isLiked ? "text-flame" : "text-faint hover:text-white"}`}
                             >
-                              <Flame className={`h-3.5 w-3.5 ${message.isLiked ? "fill-flame" : ""}`} />
-                              {message.likes > 0 && <span className="tabular-nums">{message.likes}</span>}
+                              <Flame className={`h-4 w-4 ${message.isLiked ? "fill-flame" : ""}`} />
                             </button>
                             {deletable && (
-                              <button onClick={() => handleUnsendMessage(message.id)} className="inline-flex items-center gap-1 hover:text-white">
-                                <Clock className="h-3 w-3" />
-                                Unsend · {getTimeRemaining(message)}
+                              <button
+                                onClick={() => handleUnsendMessage(message.id)}
+                                aria-label={`Unsend, ${getTimeRemaining(message)} left`}
+                                title={`Unsend · ${getTimeRemaining(message)} left`}
+                                className="grid h-8 w-8 place-items-center rounded-full text-faint hover:bg-raised hover:text-white"
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </button>
                             )}
                           </div>
                         </div>
+                        {(endsRun || active || message.likes > 0) && (
+                          <div className={`mt-1 flex items-center gap-2 px-1 text-xs text-faint ${mine ? "flex-row-reverse self-end" : "self-start"}`}>
+                            {message.likes > 0 && (
+                              <button
+                                onClick={() => handleLikeMessage(message.id)}
+                                aria-label={message.isLiked ? "Remove flame" : "Give a flame"}
+                                aria-pressed={message.isLiked}
+                                className={`-mt-2.5 inline-flex h-5 items-center gap-1 rounded-full border-2 border-surface px-1.5 tabular-nums ${message.isLiked ? "bg-flame-tint text-flame" : "bg-raised text-muted-text"}`}
+                              >
+                                <Flame className={`h-3 w-3 ${message.isLiked ? "fill-flame" : ""}`} />
+                                {message.likes}
+                              </button>
+                            )}
+                            {(endsRun || active) && <span>{clockTime(message)}</span>}
+                            {/* Touch devices: tap a message to flame or unsend it */}
+                            {active && (
+                              <span className="flex items-center gap-2 [@media(hover:hover)]:hidden">
+                                {!message.isLiked && (
+                                  <button onClick={() => handleLikeMessage(message.id)} className="inline-flex items-center gap-1 text-white">
+                                    <Flame className="h-3.5 w-3.5" />Flame
+                                  </button>
+                                )}
+                                {deletable && (
+                                  <button onClick={() => handleUnsendMessage(message.id)} className="inline-flex items-center gap-1 text-white">
+                                    <Clock className="h-3 w-3" />Unsend · {getTimeRemaining(message)}
+                                  </button>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </li>
                     );
                   })}
