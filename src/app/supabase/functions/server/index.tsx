@@ -133,6 +133,18 @@ const storeMedia = async (uid: string, bytes: ArrayBuffer | Uint8Array, contentT
   return { url: data?.signedUrl as string, path };
 };
 
+// The storage path inside a signed link, e.g. <uid>/1700000000.jpg
+const storagePathFromUrl = (url: unknown) => {
+  if (!isStoredMediaUrl(url)) return null;
+  const marker = `/storage/v1/object/sign/${MEDIA_BUCKET}/`;
+  const path = (url as string).slice((url as string).indexOf(marker) + marker.length).split("?")[0];
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return null;
+  }
+};
+
 // Older chats kept photos inside the conversation record as base64 text, twice (one copy per
 // person). Move them to storage the first time the conversation is loaded.
 const moveInlineChatMedia = async (conversations: any[]) => {
@@ -866,6 +878,18 @@ app.delete("/make-server-1f5afd66/posts/:postId", async (c) => {
     }
 
     await kv.del(postId);
+
+    // Deleting a streak also deletes its photos and videos (the post's and every day's),
+    // but only files in the owner's own folder
+    const mediaPaths = new Set(
+      [post.imageUrl, ...(post.streakDays || []).map((day: any) => day?.imageUrl)]
+        .map(storagePathFromUrl)
+        .filter((path): path is string => !!path && path.startsWith(`${user.id}/`))
+    );
+    if (mediaPaths.size) {
+      const { error: removeError } = await serviceClient().storage.from(MEDIA_BUCKET).remove([...mediaPaths]);
+      if (removeError) console.error("Couldn't remove streak media:", removeError);
+    }
 
     // Remove from index
     const postsIndex = await kv.get('posts:index') || [];
