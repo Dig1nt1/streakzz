@@ -1334,7 +1334,7 @@ export default function App() {
   const railItems = navItems.filter(item => item.view !== "profile");
   const railLabel =
     "pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-raised px-2.5 py-1.5 text-[13px] font-medium text-white opacity-0 shadow-[0_8px_24px_rgba(0,0,0,.45)] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100";
-  const showRail = currentView === "feed" || currentView === "leaderboard" || currentView === "profile";
+  const showRail = currentView === "feed" || currentView === "leaderboard";
   const trendingCategories = [
     { name: "Fitness", active: 1200 },
     { name: "Gaming", active: 987 },
