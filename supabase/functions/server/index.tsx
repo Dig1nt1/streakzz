@@ -95,6 +95,102 @@ const findComment = (comments: any[], commentId: string) => {
   return null;
 };
 
+// Every KV row whose key starts with prefix, with its key (kv.getByPrefix returns values only).
+// LIKE treats "_" as a wildcard, so rows are re-checked with startsWith.
+const kvEntries = async (prefix: string): Promise<{ key: string; value: any }[]> => {
+  const { data, error } = await serviceClient()
+    .from("kv_store_1f5afd66")
+    .select("key, value")
+    .like("key", prefix + "%");
+  if (error) throw new Error(error.message);
+  return (data ?? []).filter((row: any) => row.key.startsWith(prefix));
+};
+
+// Remove everything a deleted user left behind: their posts and uploads, their comments,
+// replies and likes on other people's posts, both sides of their chats, message likes,
+// backing records, Sync rooms they created, and their presence and messages in other rooms.
+const purgeUserData = async (uid: string) => {
+  const notMine = (id: string) => id !== uid;
+
+  // Posts
+  const removedPostIds: string[] = [];
+  for (const { key, value: post } of await kvEntries("post:")) {
+    if (!post) continue;
+    if (post.userId === uid) {
+      await kv.del(key);
+      removedPostIds.push(post.id || key);
+      continue;
+    }
+    const before = JSON.stringify(post);
+    if (Array.isArray(post.likedBy)) {
+      post.likedBy = post.likedBy.filter(notMine);
+      post.likes = post.likedBy.length;
+    }
+    post.streakDays = (post.streakDays || []).map((day: any) => {
+      if (!Array.isArray(day.likedBy)) return day;
+      const likedBy = day.likedBy.filter(notMine);
+      return { ...day, likedBy, likes: likedBy.length };
+    });
+    const cleanComment = (comment: any) => {
+      const likedBy = Array.isArray(comment.likedBy) ? comment.likedBy.filter(notMine) : comment.likedBy;
+      return {
+        ...comment,
+        ...(Array.isArray(likedBy) ? { likedBy, likes: likedBy.length } : {}),
+        replies: (comment.replies || []).filter((r: any) => r.userId !== uid).map(cleanComment),
+      };
+    };
+    post.comments = (post.comments || []).filter((cm: any) => cm.userId !== uid).map(cleanComment);
+    if (JSON.stringify(post) !== before) await kv.set(key, post);
+  }
+  const postsIndex: string[] = await kv.get("posts:index") || [];
+  await kv.set("posts:index", postsIndex.filter((id) => !removedPostIds.includes(id)));
+
+  // Backing records: backing:<backerId>:<targetId>
+  for (const { key } of await kvEntries("backing:")) {
+    const [, backerId, targetId] = key.split(":");
+    if (backerId === uid || targetId === uid) await kv.del(key);
+  }
+
+  // Chats: both copies, conversation:<owner>:<other>
+  for (const { key } of await kvEntries("conversation:")) {
+    const [, owner, other] = key.split(":");
+    if (owner === uid || other === uid) await kv.del(key);
+  }
+
+  // Message likes: message_like:<messageId>:<userId>
+  for (const { key } of await kvEntries("message_like:")) {
+    if (key.endsWith(`:${uid}`)) await kv.del(key);
+  }
+
+  // Sync rooms they created, with their presence list and chat
+  for (const { key, value: room } of await kvEntries("sync_custom_room:")) {
+    if (room?.createdBy !== uid) continue;
+    const roomId = key.slice("sync_custom_room:".length);
+    await kv.del(key);
+    await kv.del(`sync_room:${roomId}`);
+    await kv.del(`sync_chat:${roomId}`);
+  }
+  for (const { key, value: room } of await kvEntries("sync_room:")) {
+    if (room?.users?.some((u: any) => u.userId === uid)) {
+      await kv.set(key, { ...room, users: room.users.filter((u: any) => u.userId !== uid) });
+    }
+  }
+  for (const { key, value: messages } of await kvEntries("sync_chat:")) {
+    if (Array.isArray(messages) && messages.some((m: any) => m.userId === uid)) {
+      await kv.set(key, messages.filter((m: any) => m.userId !== uid));
+    }
+  }
+
+  // Uploaded photos and videos live under <uid>/ in the posts bucket
+  const bucket = serviceClient().storage.from("make-1f5afd66-posts");
+  for (let round = 0; round < 50; round++) {
+    const { data: files, error } = await bucket.list(uid, { limit: 1000 });
+    if (error || !files?.length) break;
+    const { error: removeError } = await bucket.remove(files.map((f: any) => `${uid}/${f.name}`));
+    if (removeError) break;
+  }
+};
+
 // Note: Cleanup will happen when users try to use freed aliases
 // The check-alias endpoint will verify if the user still exists
 
@@ -1821,22 +1917,8 @@ app.delete("/make-server-1f5afd66/users/:userId", async (c) => {
 
     await kv.del(`user:${userIdToDelete}`);
 
-    // Posts: getByPrefix returns the stored values; a post's key is its id.
-    const allPosts = await kv.getByPrefix("post:");
-    const userPostIds = allPosts.filter((post: any) => post?.userId === userIdToDelete).map((post: any) => post.id);
-    for (const id of userPostIds) await kv.del(id);
-    const postsIndex: string[] = await kv.get('posts:index') || [];
-    await kv.set('posts:index', postsIndex.filter((id) => !userPostIds.includes(id)));
-
-    // Backing records are stored as backing:<backerId>:<targetUserId>.
-    const allBacking = await kv.getByPrefix("backing:");
-    for (const entry of allBacking) {
-      const backerId = entry?.backerId;
-      const targetId = entry?.targetUserId ?? entry?.backedUserId ?? entry?.targetId;
-      if (backerId && targetId && (backerId === userIdToDelete || targetId === userIdToDelete)) {
-        await kv.del(`backing:${backerId}:${targetId}`);
-      }
-    }
+    // Everything else they left behind (posts, comments, likes, chats, rooms, uploads)
+    await purgeUserData(userIdToDelete);
 
     console.log(`Successfully deleted user ${userIdToDelete} and freed alias`);
     return c.json({
