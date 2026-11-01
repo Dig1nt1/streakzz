@@ -342,7 +342,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
       }),
     };
 
-    const lastMessageText = text || (media?.type.startsWith('video/') ? '📹 Video' : '📷 Photo');
+    const lastMessageText = text || (media?.type.startsWith('video/') ? 'Video' : 'Photo');
 
     // Clear the input and show the message immediately
     setMessageText("");
@@ -437,7 +437,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
       return {
         ...c,
         messages: updatedMessages,
-        lastMessage: lastMsg?.text || (lastMsg?.mediaType === 'video' ? '📹 Video' : lastMsg?.mediaUrl ? '📷 Photo' : 'No messages'),
+        lastMessage: lastMsg?.text || (lastMsg?.mediaType === 'video' ? 'Video' : lastMsg?.mediaUrl ? 'Photo' : 'No messages'),
         lastMessageTime: lastMsg?.timestamp || '',
       };
     });
