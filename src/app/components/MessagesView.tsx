@@ -70,6 +70,8 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isSendingRef = useRef(false);
+  // Messages being unsent, hidden from refreshes until the server has removed them
+  const unsendingIdsRef = useRef<Set<string>>(new Set());
   // Tracks the currently open conversation so late poll responses for another one are ignored
   const selectedConversationUserIdRef = useRef<string | null>(null);
 
@@ -266,9 +268,13 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
       // Ignore responses that land after the user switched or deleted the conversation
       if (selectedConversationUserIdRef.current !== pollUserId) return;
       if (updatedConversation && updatedConversation.messages) {
+        // Keep messages still on their way to the server, and drop ones being unsent
         const applyUpdate = (conv: Conversation): Conversation => ({
           ...conv,
-          messages: updatedConversation.messages,
+          messages: [
+            ...updatedConversation.messages.filter((msg: Message) => !unsendingIdsRef.current.has(msg.id)),
+            ...conv.messages.filter((msg) => msg.id.startsWith('temp-')),
+          ],
           lastMessage: updatedConversation.lastMessage || conv.lastMessage,
           lastMessageTime: updatedConversation.lastMessageTime || conv.lastMessageTime,
           unread: 0,
@@ -437,6 +443,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
         const serverMessage = await response.json().catch(() => null);
         // Replace the temporary message with the server's copy so unsend/like use the real id
         if (serverMessage?.id) {
+          if (voice && preview) setTimeout(() => URL.revokeObjectURL(preview), 1000);
           updateConversationById(conv.id, (c) => ({
             ...c,
             messages: c.messages.map((msg) =>
@@ -490,6 +497,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
     });
 
     if (!accessToken) return;
+    unsendingIdsRef.current.add(messageId);
 
     const rollback = (message: string) => {
       updateConversationById(conv.id, (c) => ({
@@ -519,6 +527,8 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
     } catch (error) {
       console.error("Error deleting message from server:", error);
       rollback("Failed to unsend message. Check your connection.");
+    } finally {
+      unsendingIdsRef.current.delete(messageId);
     }
   };
 
