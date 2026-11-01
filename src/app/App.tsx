@@ -11,7 +11,6 @@ import { CreatePostDialog } from "./components/CreatePostDialog";
 import { AuthView } from "./components/AuthView";
 import { WelcomeDialog } from "./components/WelcomeDialog";
 import { UserMenu } from "./components/UserMenu";
-import { DebugAliasManager } from "./components/DebugAliasManager";
 import { Post, Comment, StreakDay } from "./components/PostCard";
 import { Button } from "./components/ui/button";
 import { getSupabaseClient } from "./utils/supabase/client";
@@ -340,9 +339,15 @@ export default function App() {
 
       if (Array.isArray(serverPosts)) {
         // Hydrate isLiked on each post and each streak day from likedBy arrays
+        const markComment = (comment: any): any => ({
+          ...comment,
+          isLiked: userId ? (comment.likedBy || []).includes(userId) : !!comment.isLiked,
+          replies: (comment.replies || []).map(markComment),
+        });
         const hydratedPosts = serverPosts.map((post: any) => ({
           ...post,
           isLiked: userId ? (post.likedBy || []).includes(userId) : false,
+          comments: (post.comments || []).map(markComment),
           streakDays: post.streakDays?.map((day: any) => ({
             ...day,
             isLiked: userId ? (day.likedBy || []).includes(userId) : false,
@@ -889,10 +894,6 @@ export default function App() {
     );
   }
 
-  // TEMPORARY: Show debug manager if URL has ?debug=alias
-  if (typeof window !== 'undefined' && window.location.search.includes('debug=alias')) {
-    return <DebugAliasManager />;
-  }
 
   // Show auth view if not authenticated
   if (!authState.isAuthenticated) {
@@ -1116,72 +1117,71 @@ export default function App() {
     }
   };
 
-  const persistPost = async (post: Post) => {
+  // Comments, replies and comment likes go through their own endpoints; the server
+  // decides who wrote what and returns the whole post, which replaces the local copy.
+  const hydratePost = (post: any): Post => {
+    const userId = authState.userId;
+    const markComment = (comment: any): Comment => ({
+      ...comment,
+      isLiked: userId ? (comment.likedBy || []).includes(userId) : false,
+      replies: (comment.replies || []).map(markComment),
+    });
+    return {
+      ...post,
+      isLiked: userId ? (post.likedBy || []).includes(userId) : false,
+      comments: (post.comments || []).map(markComment),
+      streakDays: post.streakDays?.map((day: any) => ({
+        ...day,
+        isLiked: userId ? (day.likedBy || []).includes(userId) : false,
+      })),
+    };
+  };
+
+  const commentRequest = async (postId: string, path: string, method: "POST" | "DELETE", body?: object) => {
     if (!authState.accessToken) return;
     try {
-      await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/posts/${post.id}`,
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/posts/${encodeURIComponent(postId)}/comments${path}`,
         {
-          method: 'PUT',
-          headers: { 'Authorization': `Bearer ${authState.accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(post),
+          method,
+          headers: { "Authorization": `Bearer ${authState.accessToken}`, "Content-Type": "application/json" },
+          body: body ? JSON.stringify(body) : undefined,
         }
       );
-    } catch {
-      // Silent — local state already updated
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      const updated = hydratePost(await response.json());
+      setPosts(prev => prev.map(post => (post.id === postId ? updated : post)));
+    } catch (error) {
+      console.error("Comment request failed:", error);
+      toast.error("That didn't save. Please try again.");
     }
   };
 
   const handleComment = (postId: string, comment: string) => {
-    setPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        const newComment: Comment = {
-          id: Date.now().toString(),
-          userId: authState.userId!,
-          userName: userProfile?.name || authState.userName!,
-          userAvatar: userProfile?.avatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${authState.userId}`,
-          text: comment,
-          timestamp: "Just now",
-        };
-        const updated = { ...post, comments: [...post.comments, newComment] };
-        persistPost(updated);
-        return updated;
-      }
-      return post;
-    }));
+    commentRequest(postId, "", "POST", { text: comment });
   };
 
   const handleDeleteComment = (postId: string, commentId: string) => {
-    setPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        const isTopLevelComment = post.comments.some(c => c.id === commentId);
-        let updated: Post;
-        if (isTopLevelComment) {
-          updated = { ...post, comments: post.comments.filter(comment => comment.id !== commentId) };
-        } else {
-          updated = {
-            ...post,
-            comments: post.comments.map(comment => ({
-              ...comment,
-              replies: comment.replies?.filter(reply => reply.id !== commentId) || []
-            }))
-          };
-        }
-        persistPost(updated);
-        return updated;
-      }
-      return post;
-    }));
+    commentRequest(postId, `/${encodeURIComponent(commentId)}`, "DELETE");
   };
 
   const handleCloseStreak = async (postId: string) => {
-    setPosts(prev => prev.map(post => {
-      if (post.id !== postId) return post;
-      const updated = { ...post, isClosed: true };
-      persistPost(updated);
-      return updated;
-    }));
-    toast.success("Streak marked as ended 🏁");
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/posts/${encodeURIComponent(postId)}`,
+        {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${authState.accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isClosed: true }),
+        }
+      );
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      setPosts(prev => prev.map(post => (post.id === postId ? { ...post, isClosed: true } : post)));
+      toast.success("Streak marked as ended");
+    } catch (error) {
+      console.error("Error closing streak:", error);
+      toast.error("Couldn't end the streak. Please try again.");
+    }
   };
 
   const handleDeletePost = async (postId: string) => {
@@ -1214,64 +1214,11 @@ export default function App() {
   };
 
   const handleLikeComment = (postId: string, commentId: string) => {
-    setPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        const updated = {
-          ...post,
-          comments: post.comments.map(comment => {
-            if (comment.id === commentId) {
-              const isLiked = comment.isLiked || false;
-              const currentLikes = comment.likes || 0;
-              return { ...comment, isLiked: !isLiked, likes: isLiked ? currentLikes - 1 : currentLikes + 1 };
-            }
-            if (comment.replies) {
-              return {
-                ...comment,
-                replies: comment.replies.map(reply => {
-                  if (reply.id === commentId) {
-                    const isLiked = reply.isLiked || false;
-                    const currentLikes = reply.likes || 0;
-                    return { ...reply, isLiked: !isLiked, likes: isLiked ? currentLikes - 1 : currentLikes + 1 };
-                  }
-                  return reply;
-                }),
-              };
-            }
-            return comment;
-          })
-        };
-        persistPost(updated);
-        return updated;
-      }
-      return post;
-    }));
+    commentRequest(postId, `/${encodeURIComponent(commentId)}/like`, "POST");
   };
 
   const handleReplyToComment = (postId: string, commentId: string, replyText: string) => {
-    setPosts(prev => prev.map(post => {
-      if (post.id === postId) {
-        const updated = {
-          ...post,
-          comments: post.comments.map(comment => {
-            if (comment.id === commentId) {
-              const newReply: Comment = {
-                id: Date.now().toString(),
-                userId: authState.userId!,
-                userName: userProfile?.name || authState.userName!,
-                userAvatar: userProfile?.avatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${authState.userId}`,
-                text: replyText,
-                timestamp: "Just now",
-              };
-              return { ...comment, replies: [...(comment.replies || []), newReply] };
-            }
-            return comment;
-          })
-        };
-        persistPost(updated);
-        return updated;
-      }
-      return post;
-    }));
+    commentRequest(postId, "", "POST", { text: replyText, parentId: commentId });
   };
 
   const handleUpdateProfile = async (updates: {
@@ -1495,14 +1442,6 @@ export default function App() {
 
   const leaderboardUsers = getLeaderboardUsers();
 
-  // Check for debug mode
-  const urlParams = new URLSearchParams(window.location.search);
-  const debugMode = urlParams.get('debug');
-  
-  // If debug=alias is in the URL, show the debug manager
-  if (debugMode === 'alias') {
-    return <DebugAliasManager />;
-  }
 
   const navItems: Array<{ view: View; label: string; short: string; icon: typeof Home }> = [
     { view: "feed", label: "Feed", short: "Feed", icon: Home },

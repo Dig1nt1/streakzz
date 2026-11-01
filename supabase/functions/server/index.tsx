@@ -16,6 +16,85 @@ app.use(
   }),
 );
 
+// ---------------------------------------------------------------------------
+// Security helpers
+// ---------------------------------------------------------------------------
+
+const serviceClient = () => createClient(
+  Deno.env.get('SUPABASE_URL') ?? '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+);
+
+// Returns the signed-in user for this request, or null.
+const getRequestUser = async (c: any) => {
+  const accessToken = c.req.header('Authorization')?.split(' ')[1];
+  if (!accessToken) return null;
+  const { data: { user }, error } = await serviceClient().auth.getUser(accessToken);
+  return error || !user?.id ? null : user;
+};
+
+// Admin, debug and cleanup routes are closed unless the function has an ADMIN_API_KEY secret
+// and the request sends it in the x-admin-key header. Without the secret they do not exist.
+const adminOnly = async (c: any, next: () => Promise<void>) => {
+  const adminKey = Deno.env.get('ADMIN_API_KEY');
+  if (!adminKey || c.req.header('x-admin-key') !== adminKey) {
+    return c.json({ error: 'Not found' }, 404);
+  }
+  await next();
+};
+for (const path of [
+  "/make-server-1f5afd66/admin/*",
+  "/make-server-1f5afd66/debug/*",
+  "/make-server-1f5afd66/cleanup-mock-backing",
+  "/make-server-1f5afd66/cleanup-orphaned-aliases",
+]) {
+  app.use(path, adminOnly);
+}
+
+// Older accounts got default avatar URLs seeded with their email, and those URLs were copied into
+// posts, comments and room lists. Every JSON response swaps such a seed for a one-way hash of it,
+// so the avatar stays the same picture for that person but no longer reveals the address.
+const EMAIL_SEEDED_AVATAR = /(api\.dicebear\.com\/[^"?\s]*\?seed=)([^"&\s]*(?:@|%40)[^"&\s]*)/g;
+const hashSeed = async (seed: string) => {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(decodeURIComponent(seed)));
+  return Array.from(new Uint8Array(digest).slice(0, 12)).map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+app.use("/*", async (c, next) => {
+  await next();
+  if (!c.res.headers.get("content-type")?.includes("application/json")) return;
+  const text = await c.res.clone().text();
+  const seeds = [...new Set([...text.matchAll(EMAIL_SEEDED_AVATAR)].map((m) => m[2]))];
+  if (seeds.length === 0) return;
+  const hashes = new Map(await Promise.all(seeds.map(async (seed) => [seed, await hashSeed(seed)] as const)));
+  const cleaned = text.replace(EMAIL_SEEDED_AVATAR, (_m, prefix, seed) => `${prefix}${hashes.get(seed)}`);
+  const headers = new Headers(c.res.headers);
+  headers.delete("content-length");
+  c.res = new Response(cleaned, { status: c.res.status, headers });
+});
+
+// Fields a user may set on their own profile and posts; everything else is server-owned.
+const PROFILE_FIELDS = ['name', 'avatar', 'bio', 'isPublic', 'websiteLinks', 'achievements'];
+const POST_FIELDS = ['category', 'streakCount', 'title', 'description', 'imageUrl', 'mediaType', 'timestamp', 'isParentStreak', 'streakDays', 'isClosed'];
+const pick = (source: any, fields: string[]) =>
+  Object.fromEntries(fields.filter((f) => source && source[f] !== undefined).map((f) => [f, source[f]]));
+
+// A profile as other people may see it: never the email; private profiles show only their card.
+const publicProfile = (profile: any, viewerId: string | null) => {
+  const { email: _email, ...rest } = profile;
+  if (profile.isPublic === false && viewerId !== profile.id) {
+    return { id: profile.id, name: profile.name, alias: profile.alias, avatar: profile.avatar, isPublic: false };
+  }
+  return rest;
+};
+
+const findComment = (comments: any[], commentId: string) => {
+  for (const comment of comments || []) {
+    if (comment.id === commentId) return comment;
+    for (const reply of comment.replies || []) if (reply.id === commentId) return reply;
+  }
+  return null;
+};
+
 // Note: Cleanup will happen when users try to use freed aliases
 // The check-alias endpoint will verify if the user still exists
 
@@ -160,7 +239,7 @@ app.post("/make-server-1f5afd66/signup", async (c) => {
       name,
       alias,
       email,
-      avatar: `https://api.dicebear.com/9.x/thumbs/svg?seed=${email}`,
+      avatar: `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(data.user.id)}`,
       bio: "New Streakz member 🔥",
       joined: new Date().toISOString(),
       totalStreaks: 0,
@@ -190,7 +269,8 @@ app.get("/make-server-1f5afd66/user/:userId", async (c) => {
       return c.json({ error: "User not found" }, 404);
     }
 
-    return c.json(user);
+    const viewer = await getRequestUser(c);
+    return c.json(publicProfile({ ...user, id: userId }, viewer?.id ?? null));
   } catch (error: any) {
     console.error("Error fetching user profile:", error);
     return c.json({ error: error.message || "Internal server error" }, 500);
@@ -218,13 +298,14 @@ app.put("/make-server-1f5afd66/user/:userId", async (c) => {
       return c.json({ error: 'Unauthorized' }, 403);
     }
 
-    const updates = await c.req.json();
+    const updates = pick(await c.req.json(), PROFILE_FIELDS);
     const existingUser = await kv.get(`user:${userId}`) || {};
 
+    // alias, email, id and counters stay server-owned
     const updatedUser = {
       ...existingUser,
       ...updates,
-      id: userId, // Ensure ID doesn't change
+      id: userId,
     };
 
     await kv.set(`user:${userId}`, updatedUser);
@@ -377,11 +458,14 @@ app.post("/make-server-1f5afd66/posts", async (c) => {
     const userProfile = await kv.get(`user:${user.id}`);
 
     const post = {
+      ...pick(postData, POST_FIELDS),
       id: postId,
       userId: user.id,
       userName: userProfile?.name || user.user_metadata?.name || 'User',
       userAvatar: userProfile?.avatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${user.id}`,
-      ...postData,
+      likes: 0,
+      likedBy: [],
+      comments: [],
       createdAt: new Date().toISOString(),
     };
 
@@ -431,14 +515,29 @@ app.put("/make-server-1f5afd66/posts/:postId", async (c) => {
     }
 
     const postId = c.req.param('postId');
-    const updates = await c.req.json();
+    const updates = pick(await c.req.json(), POST_FIELDS);
 
     const existingPost = await kv.get(postId);
     if (!existingPost) {
       return c.json({ error: 'Post not found' }, 404);
     }
 
-    const updatedPost = { ...existingPost, ...updates };
+    // Only the author edits a post. Comments and likes have their own endpoints.
+    if (existingPost.userId !== user.id) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    // Keep each day's likes from the server, never from the client's copy.
+    if (Array.isArray(updates.streakDays)) {
+      const savedDays = new Map((existingPost.streakDays || []).map((d: any) => [d.dayNumber, d]));
+      updates.streakDays = updates.streakDays.map((day: any) => {
+        const saved: any = savedDays.get(day.dayNumber);
+        const { isLiked: _isLiked, ...rest } = day;
+        return { ...rest, likedBy: saved?.likedBy || [], likes: saved?.likedBy?.length || 0 };
+      });
+    }
+
+    const updatedPost = { ...existingPost, ...updates, id: postId, userId: existingPost.userId };
     await kv.set(postId, updatedPost);
 
     return c.json(updatedPost);
@@ -495,6 +594,110 @@ app.post("/make-server-1f5afd66/posts/:postId/like", async (c) => {
     return c.json(post);
   } catch (error: any) {
     console.error("Error liking post:", error);
+    return c.json({ error: error.message || "Internal server error" }, 500);
+  }
+});
+
+// Add a comment, or a reply when parentId is given. The author comes from the token.
+app.post("/make-server-1f5afd66/posts/:postId/comments", async (c) => {
+  try {
+    const user = await getRequestUser(c);
+    if (!user) return c.json({ error: 'Unauthorized' }, 401);
+
+    const postId = c.req.param('postId');
+    const { text, parentId } = await c.req.json().catch(() => ({}));
+    const body = typeof text === 'string' ? text.trim() : '';
+    if (!body) return c.json({ error: 'Comment text required' }, 400);
+    if (body.length > 1000) return c.json({ error: 'Comment is too long' }, 400);
+
+    const post = await kv.get(postId);
+    if (!post) return c.json({ error: 'Post not found' }, 404);
+
+    const profile = await kv.get(`user:${user.id}`);
+    const avatar = typeof profile?.avatar === 'string' && !profile.avatar.startsWith('data:')
+      ? profile.avatar
+      : `https://api.dicebear.com/9.x/thumbs/svg?seed=${user.id}`;
+    const comment = {
+      id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      userId: user.id,
+      userName: profile?.alias || profile?.name || user.user_metadata?.name || 'User',
+      userAvatar: avatar,
+      text: body,
+      timestamp: 'Just now',
+      createdAt: new Date().toISOString(),
+      likedBy: [],
+      likes: 0,
+    };
+
+    post.comments = post.comments || [];
+    if (parentId) {
+      const parent = post.comments.find((cm: any) => cm.id === parentId);
+      if (!parent) return c.json({ error: 'Comment not found' }, 404);
+      parent.replies = [...(parent.replies || []), comment];
+    } else {
+      post.comments = [...post.comments, comment];
+    }
+
+    await kv.set(postId, post);
+    return c.json(post);
+  } catch (error: any) {
+    console.error("Error adding comment:", error);
+    return c.json({ error: error.message || "Internal server error" }, 500);
+  }
+});
+
+// Delete a comment or reply: its author or the post's author may do this.
+app.delete("/make-server-1f5afd66/posts/:postId/comments/:commentId", async (c) => {
+  try {
+    const user = await getRequestUser(c);
+    if (!user) return c.json({ error: 'Unauthorized' }, 401);
+
+    const postId = c.req.param('postId');
+    const commentId = c.req.param('commentId');
+    const post = await kv.get(postId);
+    if (!post) return c.json({ error: 'Post not found' }, 404);
+
+    const comment = findComment(post.comments, commentId);
+    if (!comment) return c.json({ error: 'Comment not found' }, 404);
+    if (comment.userId !== user.id && post.userId !== user.id) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    post.comments = (post.comments || [])
+      .filter((cm: any) => cm.id !== commentId)
+      .map((cm: any) => ({ ...cm, replies: (cm.replies || []).filter((r: any) => r.id !== commentId) }));
+
+    await kv.set(postId, post);
+    return c.json(post);
+  } catch (error: any) {
+    console.error("Error deleting comment:", error);
+    return c.json({ error: error.message || "Internal server error" }, 500);
+  }
+});
+
+// Like or unlike a comment or reply, once per user.
+app.post("/make-server-1f5afd66/posts/:postId/comments/:commentId/like", async (c) => {
+  try {
+    const user = await getRequestUser(c);
+    if (!user) return c.json({ error: 'Unauthorized' }, 401);
+
+    const postId = c.req.param('postId');
+    const commentId = c.req.param('commentId');
+    const post = await kv.get(postId);
+    if (!post) return c.json({ error: 'Post not found' }, 404);
+
+    const comment = findComment(post.comments, commentId);
+    if (!comment) return c.json({ error: 'Comment not found' }, 404);
+
+    const likedBy: string[] = comment.likedBy || [];
+    comment.likedBy = likedBy.includes(user.id) ? likedBy.filter((id) => id !== user.id) : [...likedBy, user.id];
+    comment.likes = comment.likedBy.length;
+    delete comment.isLiked;
+
+    await kv.set(postId, post);
+    return c.json(post);
+  } catch (error: any) {
+    console.error("Error liking comment:", error);
     return c.json({ error: error.message || "Internal server error" }, 500);
   }
 });
@@ -749,6 +952,11 @@ app.delete("/make-server-1f5afd66/conversations/:otherUserId/messages/:messageId
 
     const conversation1 = await kv.get(conversationKey1);
     const conversation2 = await kv.get(conversationKey2);
+
+    // Only the person who sent a message may unsend it.
+    const target = (conversation1?.messages || conversation2?.messages || []).find((msg: any) => msg.id === messageId);
+    if (!target) return c.json({ error: 'Message not found' }, 404);
+    if (target.senderId !== user.id) return c.json({ error: 'Forbidden' }, 403);
 
     if (conversation1) {
       conversation1.messages = conversation1.messages.filter(msg => msg.id !== messageId);
@@ -1008,7 +1216,10 @@ app.post("/make-server-1f5afd66/sync/rooms/create", async (c) => {
     }
 
     const body = await c.req.json();
-    const { name, description, category, isPrivate, password, createdBy, creatorName } = body;
+    const { name, description, category, isPrivate, password } = body;
+    const creatorProfile = await kv.get(`user:${user.id}`);
+    const createdBy = user.id;
+    const creatorName = creatorProfile?.alias || creatorProfile?.name || user.user_metadata?.name || 'User';
 
     // Validate inputs
     if (!name || !description || !category) {
@@ -1101,10 +1312,11 @@ app.post("/make-server-1f5afd66/sync/rooms/:roomId/join", async (c) => {
     const filteredUsers = roomData.users.filter((u: any) => u.userId !== user.id);
 
     // Add user to room
+    const joinerProfile = await kv.get(`user:${user.id}`);
     const newUser = {
       userId: user.id,
-      userName: body.userName,
-      userAvatar: body.userAvatar,
+      userName: joinerProfile?.alias || joinerProfile?.name || user.user_metadata?.name || 'User',
+      userAvatar: joinerProfile?.avatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(user.id)}`,
       joinedAt: Date.now(),
       lastHeartbeat: Date.now(),
     };
@@ -1220,6 +1432,15 @@ app.delete("/make-server-1f5afd66/sync/rooms/:roomId/delete", async (c) => {
   }
 });
 
+// A private room's chat is open only to people currently in the room (they joined with the password).
+const canUseRoomChat = async (roomId: string, userId: string) => {
+  const custom = await kv.get(`sync_custom_room:${roomId}`);
+  if (!custom?.isPrivate) return true;
+  if (custom.createdBy === userId) return true;
+  const room = await kv.get(`sync_room:${roomId}`);
+  return (room?.users || []).some((u: any) => u.userId === userId);
+};
+
 // Get chat messages for a sync room
 app.get("/make-server-1f5afd66/sync/rooms/:roomId/chat", async (c) => {
   try {
@@ -1232,6 +1453,7 @@ app.get("/make-server-1f5afd66/sync/rooms/:roomId/chat", async (c) => {
     if (!user?.id || authError) return c.json({ error: 'Unauthorized' }, 401);
 
     const roomId = c.req.param('roomId');
+    if (!(await canUseRoomChat(roomId, user.id))) return c.json({ error: 'Join this room first' }, 403);
     const messages = await kv.get(`sync_chat:${roomId}`) || [];
     return c.json(messages);
   } catch (error: any) {
@@ -1253,14 +1475,16 @@ app.post("/make-server-1f5afd66/sync/rooms/:roomId/chat", async (c) => {
     const roomId = c.req.param('roomId');
     const body = await c.req.json();
     if (!body.text?.trim()) return c.json({ error: 'Message required' }, 400);
+    if (!(await canUseRoomChat(roomId, user.id))) return c.json({ error: 'Join this room first' }, 403);
 
+    const senderProfile = await kv.get(`user:${user.id}`);
     const messages: any[] = await kv.get(`sync_chat:${roomId}`) || [];
     const newMessage = {
       id: `${Date.now()}-${user.id}`,
       userId: user.id,
-      userName: body.userName || 'Unknown',
-      userAvatar: body.userAvatar || '',
-      text: body.text.trim(),
+      userName: senderProfile?.alias || senderProfile?.name || user.user_metadata?.name || 'User',
+      userAvatar: senderProfile?.avatar || `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(user.id)}`,
+      text: String(body.text).trim().slice(0, 1000),
       timestamp: Date.now(),
     };
     // Keep last 100 messages
@@ -1570,70 +1794,37 @@ app.delete("/make-server-1f5afd66/users/:userId", async (c) => {
       return c.json({ error: 'You can only delete your own account' }, 403);
     }
 
-    // Get user data to find their alias (may be missing if KV was cleared)
-    const userData = await kv.get(`user:${userIdToDelete}`);
-
-    console.log(`Deleting user ${userIdToDelete}, data:`, userData);
-
-    // Delete the alias mapping if it exists
-    if (userData?.alias) {
-      const aliasKey = `alias:${userData.alias.toLowerCase()}`;
-      console.log(`About to delete alias mapping: ${aliasKey}`);
-      await kv.del(aliasKey);
-      console.log(`Successfully deleted alias mapping: ${aliasKey}`);
-
-      // Verify deletion
-      const checkAlias = await kv.get(aliasKey);
-      if (checkAlias) {
-        console.error(`WARNING: Alias ${aliasKey} still exists after deletion!`);
-      } else {
-        console.log(`Verified: Alias ${aliasKey} has been freed`);
-      }
-    }
-
-    // Delete user profile from KV store
-    await kv.del(`user:${userIdToDelete}`);
-    console.log(`Deleted user profile: user:${userIdToDelete}`);
-
-    // Delete all user's posts
-    const allPosts = await kv.getByPrefix("post:");
-    const userPosts = allPosts.filter((post: any) => post.value.userId === userIdToDelete);
-    for (const post of userPosts) {
-      await kv.del(post.key);
-    }
-    console.log(`Deleted ${userPosts.length} posts for user ${userIdToDelete}`);
-
-    // Delete all backing/backer relationships
-    await kv.del(`backers:${userIdToDelete}`);
-    await kv.del(`backing:${userIdToDelete}`);
-
-    // Remove from other users' backing/backer lists
-    const allBackers = await kv.getByPrefix("backers:");
-    for (const entry of allBackers) {
-      const backerList = entry.value || [];
-      if (backerList.includes(userIdToDelete)) {
-        const updatedList = backerList.filter((id: string) => id !== userIdToDelete);
-        await kv.set(entry.key, updatedList);
-      }
-    }
-
-    const allBacking = await kv.getByPrefix("backing:");
-    for (const entry of allBacking) {
-      const backingList = entry.value || [];
-      if (backingList.includes(userIdToDelete)) {
-        const updatedList = backingList.filter((id: string) => id !== userIdToDelete);
-        await kv.set(entry.key, updatedList);
-      }
-    }
-
-    console.log(`Cleaned up backing/backer relationships for user ${userIdToDelete}`);
-
-    // Delete from Supabase Auth
+    // Delete the login first, so a failure part-way never leaves a signed-in user without a profile.
     const { error: deleteError } = await supabase.auth.admin.deleteUser(userIdToDelete);
-
     if (deleteError) {
       console.error("Error deleting user from Supabase Auth:", deleteError);
       return c.json({ error: "Failed to delete user from authentication system" }, 500);
+    }
+
+    // Free the alias only if it still points at this user.
+    const userData = await kv.get(`user:${userIdToDelete}`);
+    if (userData?.alias) {
+      const aliasKey = `alias:${String(userData.alias).toLowerCase()}`;
+      if ((await kv.get(aliasKey)) === userIdToDelete) await kv.del(aliasKey);
+    }
+
+    await kv.del(`user:${userIdToDelete}`);
+
+    // Posts: getByPrefix returns the stored values; a post's key is its id.
+    const allPosts = await kv.getByPrefix("post:");
+    const userPostIds = allPosts.filter((post: any) => post?.userId === userIdToDelete).map((post: any) => post.id);
+    for (const id of userPostIds) await kv.del(id);
+    const postsIndex: string[] = await kv.get('posts:index') || [];
+    await kv.set('posts:index', postsIndex.filter((id) => !userPostIds.includes(id)));
+
+    // Backing records are stored as backing:<backerId>:<targetUserId>.
+    const allBacking = await kv.getByPrefix("backing:");
+    for (const entry of allBacking) {
+      const backerId = entry?.backerId;
+      const targetId = entry?.targetUserId ?? entry?.backedUserId ?? entry?.targetId;
+      if (backerId && targetId && (backerId === userIdToDelete || targetId === userIdToDelete)) {
+        await kv.del(`backing:${backerId}:${targetId}`);
+      }
     }
 
     console.log(`Successfully deleted user ${userIdToDelete} and freed alias`);
