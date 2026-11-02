@@ -233,3 +233,21 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .streakz-flicker { animation: none; }
 }
+
+/* The opening screen: the logo flame burning while the app checks the session.
+   Taller and brighter, then lower and dimmer, leaning a little, never on a beat. */
+@keyframes streakz-burn {
+  0%, 100% { transform: scale(1, 1) skewX(0deg); filter: brightness(1); }
+  18% { transform: scale(1.02, 1.08) skewX(-2deg); filter: brightness(1.1); }
+  34% { transform: scale(0.99, 0.96) skewX(1.5deg); filter: brightness(0.94); }
+  52% { transform: scale(1.01, 1.05) skewX(-1deg); filter: brightness(1.14); }
+  71% { transform: scale(1, 0.98) skewX(2deg); filter: brightness(0.98); }
+  86% { transform: scale(1.02, 1.06) skewX(-1.5deg); filter: brightness(1.08); }
+}
+.streakz-burn {
+  transform-origin: 50% 77%; /* the base of the flame in the logo */
+  animation: streakz-burn 1.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .streakz-burn { animation: none; }
+}
