@@ -72,6 +72,10 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
   const isSendingRef = useRef(false);
   // Messages being unsent, hidden from refreshes until the server has removed them
   const unsendingIdsRef = useRef<Set<string>>(new Set());
+  // Flames on their way to the server: message id → the state the user chose, and a
+  // counter so only the answer to the latest tap is applied
+  const pendingFlamesRef = useRef<Map<string, boolean>>(new Map());
+  const flameRequestRef = useRef<Map<string, number>>(new Map());
   // Tracks the currently open conversation so late poll responses for another one are ignored
   const selectedConversationUserIdRef = useRef<string | null>(null);
 
@@ -272,7 +276,13 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
         const applyUpdate = (conv: Conversation): Conversation => ({
           ...conv,
           messages: [
-            ...updatedConversation.messages.filter((msg: Message) => !unsendingIdsRef.current.has(msg.id)),
+            ...updatedConversation.messages
+              .filter((msg: Message) => !unsendingIdsRef.current.has(msg.id))
+              .map((msg: Message) => {
+                const wanted = pendingFlamesRef.current.get(msg.id);
+                if (wanted === undefined || wanted === msg.isLiked) return msg;
+                return { ...msg, isLiked: wanted, likes: Math.max(0, msg.likes + (wanted ? 1 : -1)) };
+              }),
             ...conv.messages.filter((msg) => msg.id.startsWith('temp-')),
           ],
           lastMessage: updatedConversation.lastMessage || conv.lastMessage,
@@ -570,78 +580,60 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
     }
   };
 
-  const handleLikeMessage = async (messageId: string) => {
-    if (!selectedConversation) return;
-
-    // Optimistically update UI
-    const message = selectedConversation.messages.find(msg => msg.id === messageId);
+  // Gives or removes a flame. Pass liked to set a state (double-click only gives one);
+  // leave it out to toggle.
+  const handleLikeMessage = async (messageId: string, liked?: boolean) => {
+    if (!selectedConversation || messageId.startsWith('temp-')) return;
+    const conv = selectedConversation;
+    const message = conv.messages.find((msg) => msg.id === messageId);
     if (!message) return;
+    const next = liked ?? !message.isLiked;
+    if (next === message.isLiked) return;
 
-    const updatedConversation = {
-      ...selectedConversation,
-      messages: selectedConversation.messages.map((msg) => {
-        if (msg.id === messageId) {
-          return {
-            ...msg,
-            isLiked: !msg.isLiked,
-            likes: msg.isLiked ? msg.likes - 1 : msg.likes + 1,
-          };
+    const setFlame = (isLiked: boolean, likes?: number) =>
+      updateConversationById(conv.id, (c) => ({
+        ...c,
+        messages: c.messages.map((msg) =>
+          msg.id === messageId
+            ? { ...msg, isLiked, likes: likes ?? Math.max(0, msg.likes + (isLiked === msg.isLiked ? 0 : isLiked ? 1 : -1)) }
+            : msg
+        ),
+      }));
+
+    pendingFlamesRef.current.set(messageId, next);
+    const request = (flameRequestRef.current.get(messageId) || 0) + 1;
+    flameRequestRef.current.set(messageId, request);
+    setFlame(next);
+
+    if (!accessToken) return;
+    const isLatest = () => flameRequestRef.current.get(messageId) === request;
+
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/conversations/${conv.userId}/messages/${messageId}/like`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ liked: next }),
         }
-        return msg;
-      }),
-    };
-
-    setSelectedConversation(updatedConversation);
-    setConversations(
-      conversations.map((conv) =>
-        conv.id === selectedConversation.id ? updatedConversation : conv
-      )
-    );
-
-    // Send like to server if authenticated
-    if (accessToken) {
-      try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-1f5afd66/conversations/${selectedConversation.userId}/messages/${messageId}/like`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log("Like synced to server:", data);
-          
-          // Update with server response to ensure consistency
-          const serverUpdatedConversation = {
-            ...selectedConversation,
-            messages: selectedConversation.messages.map((msg) => {
-              if (msg.id === messageId) {
-                return {
-                  ...msg,
-                  isLiked: data.isLiked,
-                  likes: data.likes,
-                };
-              }
-              return msg;
-            }),
-          };
-
-          setSelectedConversation(serverUpdatedConversation);
-          setConversations(
-            conversations.map((conv) =>
-              conv.id === selectedConversation.id ? serverUpdatedConversation : conv
-            )
-          );
-        } else {
-          console.error("Failed to sync like to server");
-        }
-      } catch (error) {
-        console.error("Error syncing like to server:", error);
+      );
+      if (!isLatest()) return;
+      pendingFlamesRef.current.delete(messageId);
+      if (response.ok) {
+        const data = await response.json();
+        setFlame(data.isLiked, data.likes);
+      } else {
+        setFlame(!next);
+        toast.error("Couldn't update the flame");
       }
+    } catch (error) {
+      if (!isLatest()) return;
+      pendingFlamesRef.current.delete(messageId);
+      setFlame(!next);
+      toast.error("Couldn't update the flame. Check your connection.");
     }
   };
 
@@ -845,7 +837,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                         <div className={`group flex max-w-[82%] items-center gap-1.5 sm:max-w-[68%] ${mine ? "flex-row-reverse self-end" : "self-start"} ${startsRun ? "mt-2.5" : "mt-0.5"}`}>
                           <div
                             onClick={() => setActiveMessageId(active ? null : message.id)}
-                            onDoubleClick={() => { if (!message.isLiked) handleLikeMessage(message.id); }}
+                            onDoubleClick={() => handleLikeMessage(message.id, true)}
                             className={`relative cursor-pointer select-text overflow-hidden rounded-[20px] ${corner} ${mine ? "bg-[#f2efe9] text-[#0e0d0c]" : "bg-raised text-white"} ${message.mediaType === "audio" ? "px-2 py-1.5" : message.mediaUrl && !message.text ? "" : "px-3.5 py-2"}`}
                           >
                             {message.mediaUrl && message.mediaType === "audio" && (
