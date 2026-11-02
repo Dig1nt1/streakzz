@@ -684,6 +684,33 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
 
   const thread = selectedConversation ? resolveConversation(selectedConversation) : null;
 
+  // Like Instagram: drag the thread left with a finger to see every message's time
+  const TIME_REVEAL = 64;
+  const [timeReveal, setTimeReveal] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const swipeRef = useRef<{ x: number; y: number; axis?: "x" | "y" } | null>(null);
+  const startTimeSwipe = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") return; // a mouse hovers a message instead
+    swipeRef.current = { x: e.clientX, y: e.clientY };
+  };
+  const moveTimeSwipe = (e: React.PointerEvent) => {
+    const swipe = swipeRef.current;
+    if (!swipe) return;
+    const dx = swipe.x - e.clientX;
+    const dy = Math.abs(e.clientY - swipe.y);
+    if (!swipe.axis) {
+      if (Math.abs(dx) < 8 && dy < 8) return;
+      swipe.axis = dx > dy ? "x" : "y";
+      if (swipe.axis === "x") setSwiping(true);
+    }
+    if (swipe.axis === "x") setTimeReveal(Math.max(0, Math.min(TIME_REVEAL, dx)));
+  };
+  const endTimeSwipe = () => {
+    swipeRef.current = null;
+    setSwiping(false);
+    setTimeReveal(0);
+  };
+
   // One clock format everywhere, taken from when the message was sent
   const clockTime = (message: Message) =>
     message.sentAt > 0 ? new Date(message.sentAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : message.timestamp;
@@ -807,7 +834,7 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
               </DropdownMenu>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 sm:px-5">
               {selectedConversation.messages.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center text-center">
                   <img src={thread.avatar} alt="" className="mb-3 h-16 w-16 rounded-full object-cover" />
@@ -815,15 +842,24 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                   <p className="mt-1 text-sm text-muted-text">Say hi and cheer on their streak.</p>
                 </div>
               ) : (
-                <ol className="flex min-h-full flex-col justify-end">
+                <ol
+                  className="flex min-h-full flex-col justify-end"
+                  style={{ touchAction: "pan-y" }}
+                  onPointerDown={startTimeSwipe}
+                  onPointerMove={moveTimeSwipe}
+                  onPointerUp={endTimeSwipe}
+                  onPointerCancel={endTimeSwipe}
+                >
                   {selectedConversation.messages.map((message, index) => {
                     const messages = selectedConversation.messages;
                     const mine = message.senderId === currentUserId || message.senderId === "current";
                     const previous = messages[index - 1];
                     const next = messages[index + 1];
                     const newDay = !previous || dayLabel(previous.sentAt) !== dayLabel(message.sentAt);
-                    const startsRun = newDay || !sameRun(previous, message);
-                    const endsRun = !next || dayLabel(next.sentAt) !== dayLabel(message.sentAt) || !sameRun(message, next);
+                    // A divider with the time opens each day and any return after an hour's quiet
+                    const divider = message.sentAt > 0 && (newDay || message.sentAt - (previous?.sentAt || 0) > 60 * 60000);
+                    const startsRun = divider || !sameRun(previous, message);
+                    const endsRun = !next || dayLabel(next.sentAt) !== dayLabel(message.sentAt) || !sameRun(message, next) || next.sentAt - message.sentAt > 60 * 60000;
                     const deletable = mine && canDeleteMessage(message) && !message.id.startsWith("temp-");
                     const active = activeMessageId === message.id;
                     const corner = mine
@@ -831,81 +867,99 @@ export function MessagesView({ currentUserId, currentUserName, currentUserAvatar
                       : `${startsRun ? "" : "rounded-tl-md"} ${endsRun ? "" : "rounded-bl-md"}`;
                     return (
                       <li key={message.id} className="flex flex-col">
-                        {newDay && message.sentAt > 0 && (
-                          <span className={`mb-1 self-center text-xs font-medium text-faint ${index > 0 ? "mt-6" : ""}`}>{dayLabel(message.sentAt)}</span>
+                        {divider && (
+                          <span className={`mb-1 self-center text-xs font-medium text-faint ${index > 0 ? "mt-6" : ""}`}>
+                            {dayLabel(message.sentAt)} {clockTime(message)}
+                          </span>
                         )}
-                        <div className={`group flex max-w-[82%] items-center gap-1.5 sm:max-w-[68%] ${mine ? "flex-row-reverse self-end" : "self-start"} ${startsRun ? "mt-2.5" : "mt-0.5"}`}>
-                          <div
-                            onClick={() => setActiveMessageId(active ? null : message.id)}
-                            onDoubleClick={() => handleLikeMessage(message.id, true)}
-                            className={`relative cursor-pointer select-text overflow-hidden rounded-[20px] ${corner} ${mine ? "bg-[#f2efe9] text-[#0e0d0c]" : "bg-raised text-white"} ${message.mediaType === "audio" ? "px-2 py-1.5" : message.mediaUrl && !message.text ? "" : "px-3.5 py-2"}`}
-                          >
-                            {message.mediaUrl && message.mediaType === "audio" && (
-                              <VoiceNotePlayer src={message.mediaUrl} duration={message.duration} mine={mine} />
-                            )}
-                            {message.mediaUrl && message.mediaType !== "audio" && (
-                              <div className={message.text ? "-mx-3.5 -mt-2 mb-2" : ""}>
-                                {message.mediaType === "video" ? (
-                                  <video src={message.mediaUrl} controls className="max-h-72 w-full" />
-                                ) : (
-                                  <button onClick={(e) => { e.stopPropagation(); setEnlargedImage(message.mediaUrl!); }} aria-label="Open photo" className="block">
-                                    <img src={message.mediaUrl} alt="Shared photo" className="max-h-72 w-full object-cover" />
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                            {message.text && <p className="whitespace-pre-wrap break-words text-[15px] leading-[21px]">{message.text}</p>}
-                          </div>
-                          {/* Pointer devices: flame and unsend appear beside the bubble on hover */}
-                          <div className="hidden shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:hover)]:flex">
-                            <button
-                              onClick={() => handleLikeMessage(message.id)}
-                              aria-label={message.isLiked ? "Remove flame" : "Give a flame"}
-                              aria-pressed={message.isLiked}
-                              className={`grid h-8 w-8 place-items-center rounded-full hover:bg-raised ${message.isLiked ? "text-flame" : "text-faint hover:text-white"}`}
+                        <div className={`relative flex flex-col ${startsRun ? "mt-2.5" : "mt-0.5"} ${message.likes > 0 ? "mb-3" : ""}`}>
+                          {/* Swiping the thread left slides every bubble over and shows its time here.
+                              Only drawn during a swipe: waiting off the edge would widen the thread. */}
+                          {timeReveal > 0 && (
+                            <span
+                              aria-hidden="true"
+                              className="pointer-events-none absolute right-0 top-1/2 text-xs tabular-nums text-faint"
+                              style={{ opacity: timeReveal / TIME_REVEAL, transform: `translate(${TIME_REVEAL - timeReveal}px, -50%)` }}
                             >
-                              <Flame className={`h-4 w-4 ${message.isLiked ? "fill-flame" : ""}`} />
-                            </button>
-                            {deletable && (
-                              <button
-                                onClick={() => handleUnsendMessage(message.id)}
-                                aria-label={`Unsend, ${getTimeRemaining(message)} left`}
-                                title={`Unsend · ${getTimeRemaining(message)} left`}
-                                className="grid h-8 w-8 place-items-center rounded-full text-faint hover:bg-raised hover:text-white"
+                              {clockTime(message)}
+                            </span>
+                          )}
+                          <div
+                            className={`group flex max-w-[82%] items-center gap-1.5 sm:max-w-[68%] ${mine ? "flex-row-reverse self-end" : "self-start"} ${swiping ? "" : "transition-transform duration-200 ease-out"}`}
+                            style={timeReveal ? { transform: `translateX(-${timeReveal}px)` } : undefined}
+                          >
+                            <div className="relative">
+                              <div
+                                onClick={() => setActiveMessageId(active ? null : message.id)}
+                                onDoubleClick={() => handleLikeMessage(message.id, true)}
+                                className={`relative cursor-pointer select-text overflow-hidden rounded-[20px] ${corner} ${mine ? "bg-[#f2efe9] text-[#0e0d0c]" : "bg-raised text-white"} ${message.mediaType === "audio" ? "px-2 py-1.5" : message.mediaUrl && !message.text ? "" : "px-3.5 py-2"}`}
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        {(endsRun || active || message.likes > 0) && (
-                          <div className={`mt-1 flex items-center gap-2 px-1 text-xs text-faint ${mine ? "flex-row-reverse self-end" : "self-start"}`}>
-                            {message.likes > 0 && (
+                                {message.mediaUrl && message.mediaType === "audio" && (
+                                  <VoiceNotePlayer src={message.mediaUrl} duration={message.duration} mine={mine} />
+                                )}
+                                {message.mediaUrl && message.mediaType !== "audio" && (
+                                  <div className={message.text ? "-mx-3.5 -mt-2 mb-2" : ""}>
+                                    {message.mediaType === "video" ? (
+                                      <video src={message.mediaUrl} controls className="max-h-72 w-full" />
+                                    ) : (
+                                      <button onClick={(e) => { e.stopPropagation(); setEnlargedImage(message.mediaUrl!); }} aria-label="Open photo" className="block">
+                                        <img src={message.mediaUrl} alt="Shared photo" className="max-h-72 w-full object-cover" />
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                                {message.text && <p className="whitespace-pre-wrap break-words text-[15px] leading-[21px]">{message.text}</p>}
+                                <span className="sr-only">{mine ? "Sent" : "Received"} {clockTime(message)}</span>
+                              </div>
+                              {/* Flames sit on the bubble's lower edge, so nothing around it moves */}
+                              {message.likes > 0 && (
+                                <button
+                                  onClick={() => handleLikeMessage(message.id)}
+                                  aria-label={message.isLiked ? `Remove flame, ${message.likes} total` : `Give a flame, ${message.likes} so far`}
+                                  aria-pressed={message.isLiked}
+                                  className={`absolute -bottom-3 inline-flex h-5 items-center gap-1 rounded-full border-2 border-surface px-1.5 text-xs tabular-nums ${mine ? "right-3" : "left-3"} ${message.isLiked ? "bg-flame-tint text-flame" : "bg-raised text-muted-text"}`}
+                                >
+                                  <Flame className={`h-3 w-3 ${message.isLiked ? "fill-flame" : ""}`} />
+                                  {message.likes > 1 && message.likes}
+                                </button>
+                              )}
+                            </div>
+                            {/* Pointer devices: the time, flame and unsend appear beside the bubble on hover */}
+                            <div className={`hidden shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:hover)]:flex ${mine ? "flex-row-reverse" : ""}`}>
+                              <span className="px-1.5 text-xs tabular-nums text-faint">{clockTime(message)}</span>
                               <button
                                 onClick={() => handleLikeMessage(message.id)}
                                 aria-label={message.isLiked ? "Remove flame" : "Give a flame"}
                                 aria-pressed={message.isLiked}
-                                className={`-mt-2.5 inline-flex h-5 items-center gap-1 rounded-full border-2 border-surface px-1.5 tabular-nums ${message.isLiked ? "bg-flame-tint text-flame" : "bg-raised text-muted-text"}`}
+                                className={`grid h-8 w-8 place-items-center rounded-full hover:bg-raised ${message.isLiked ? "text-flame" : "text-faint hover:text-white"}`}
                               >
-                                <Flame className={`h-3 w-3 ${message.isLiked ? "fill-flame" : ""}`} />
-                                {message.likes}
+                                <Flame className={`h-4 w-4 ${message.isLiked ? "fill-flame" : ""}`} />
+                              </button>
+                              {deletable && (
+                                <button
+                                  onClick={() => handleUnsendMessage(message.id)}
+                                  aria-label={`Unsend, ${getTimeRemaining(message)} left`}
+                                  title={`Unsend · ${getTimeRemaining(message)} left`}
+                                  className="grid h-8 w-8 place-items-center rounded-full text-faint hover:bg-raised hover:text-white"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Touch devices: tap a message to flame or unsend it */}
+                        {active && (
+                          <div className={`mt-1 flex items-center gap-3 px-1 text-xs [@media(hover:hover)]:hidden ${mine ? "self-end" : "self-start"}`}>
+                            {!message.isLiked && (
+                              <button onClick={() => handleLikeMessage(message.id)} className="inline-flex items-center gap-1 text-white">
+                                <Flame className="h-3.5 w-3.5" />Flame
                               </button>
                             )}
-                            {(endsRun || active) && <span>{clockTime(message)}</span>}
-                            {/* Touch devices: tap a message to flame or unsend it */}
-                            {active && (
-                              <span className="flex items-center gap-2 [@media(hover:hover)]:hidden">
-                                {!message.isLiked && (
-                                  <button onClick={() => handleLikeMessage(message.id)} className="inline-flex items-center gap-1 text-white">
-                                    <Flame className="h-3.5 w-3.5" />Flame
-                                  </button>
-                                )}
-                                {deletable && (
-                                  <button onClick={() => handleUnsendMessage(message.id)} className="inline-flex items-center gap-1 text-white">
-                                    <Clock className="h-3 w-3" />Unsend · {getTimeRemaining(message)}
-                                  </button>
-                                )}
-                              </span>
+                            {deletable && (
+                              <button onClick={() => handleUnsendMessage(message.id)} className="inline-flex items-center gap-1 text-white">
+                                <Clock className="h-3 w-3" />Unsend · {getTimeRemaining(message)}
+                              </button>
                             )}
                           </div>
                         )}
