@@ -730,15 +730,9 @@ export default function App() {
   // Show loading state while checking auth
   if (isCheckingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-ground">
-        <div className="text-center">
-          <img 
-            src={streakzLogo} 
-            alt="Streakz Logo" 
-            className="h-20 w-20 mx-auto mb-4 animate-pulse"
-          />
-          <p className="text-white">Loading...</p>
-        </div>
+      <div role="status" className="flex min-h-[100dvh] items-center justify-center bg-ground">
+        <img src={streakzLogo} alt="" className="streakz-burn h-36 w-36" />
+        <span className="sr-only">Loading Streakz</span>
       </div>
     );
   }
