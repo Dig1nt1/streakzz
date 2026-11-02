@@ -1214,23 +1214,26 @@ app.post("/make-server-1f5afd66/conversations/:otherUserId/messages/:messageId/l
     const conversationKey1 = `conversation:${user.id}:${otherUserId}`;
     const conversationKey2 = `conversation:${otherUserId}:${user.id}`;
 
-    const conversation1 = await kv.get(conversationKey1);
-    const conversation2 = await kv.get(conversationKey2);
-
-    // Track who liked the message
+    // The app says which state it wants ({ liked: true | false }), so repeated or
+    // out-of-order taps can't flip it the wrong way; without it, toggle (older apps)
+    const body = await c.req.json().catch(() => ({}));
     const likeKey = `message_like:${messageId}:${user.id}`;
     const existingLike = await kv.get(likeKey);
-    const isLiking = !existingLike;
+    const isLiking = typeof body?.liked === 'boolean' ? body.liked : !existingLike;
 
-    if (isLiking) {
+    if (isLiking && !existingLike) {
       await kv.set(likeKey, { userId: user.id, messageId, timestamp: Date.now() });
-    } else {
+    } else if (!isLiking && existingLike) {
       await kv.del(likeKey);
     }
 
     // Get all likes for this message
     const allLikes = await kv.getByPrefix(`message_like:${messageId}:`);
     const likeCount = allLikes?.length || 0;
+
+    // Read both copies only now, just before writing, so a message sent meanwhile isn't lost
+    const conversation1 = await kv.get(conversationKey1);
+    const conversation2 = await kv.get(conversationKey2);
 
     // Update both conversations with the new like count
     if (conversation1?.messages) {
